@@ -1,0 +1,363 @@
+export type SoundName =
+  | "attack"
+  | "heavy"
+  | "hit"
+  | "kill"
+  | "dash"
+  | "dodge"
+  | "charm"
+  | "jump"
+  | "land"
+  | "hurt"
+  | "enemyCue"
+  | "break"
+  | "boss"
+  | "ultimate"
+  | "victory"
+  | "select";
+
+export type MusicMode = "explore" | "combat" | "boss" | "victory";
+
+export class AudioEngine {
+  private context: AudioContext | null = null;
+  private master: GainNode | null = null;
+  private musicBus: GainNode | null = null;
+  private sfxBus: GainNode | null = null;
+  private noiseBuffer: AudioBuffer | null = null;
+  private musicTimer = 0;
+  private musicStep = 0;
+  private mode: MusicMode = "explore";
+  private muted = false;
+  private started = false;
+
+  get isMuted(): boolean {
+    return this.muted;
+  }
+
+  async start(): Promise<void> {
+    if (!this.context) {
+      const AudioContextClass = window.AudioContext ?? window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      this.context = new AudioContextClass();
+
+      const compressor = this.context.createDynamicsCompressor();
+      compressor.threshold.value = -18;
+      compressor.knee.value = 14;
+      compressor.ratio.value = 7;
+      compressor.attack.value = 0.002;
+      compressor.release.value = 0.18;
+
+      this.master = this.context.createGain();
+      this.master.gain.value = this.muted ? 0 : 0.72;
+      this.musicBus = this.context.createGain();
+      this.musicBus.gain.value = 0.22;
+      this.sfxBus = this.context.createGain();
+      this.sfxBus.gain.value = 0.75;
+      this.musicBus.connect(this.master);
+      this.sfxBus.connect(this.master);
+      this.master.connect(compressor);
+      compressor.connect(this.context.destination);
+      this.noiseBuffer = this.createNoiseBuffer();
+      this.startRainBed();
+    }
+
+    if (this.context.state === "suspended") await this.context.resume();
+    if (!this.started) {
+      this.started = true;
+      this.startMusicLoop();
+    }
+  }
+
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+    if (!this.context || !this.master) return;
+    const now = this.context.currentTime;
+    this.master.gain.cancelScheduledValues(now);
+    this.master.gain.setTargetAtTime(muted ? 0 : 0.72, now, 0.035);
+  }
+
+  toggleMuted(): boolean {
+    this.setMuted(!this.muted);
+    return this.muted;
+  }
+
+  setMode(mode: MusicMode): void {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    this.musicStep = 0;
+    if (this.context && this.musicBus) {
+      const now = this.context.currentTime;
+      this.musicBus.gain.cancelScheduledValues(now);
+      this.musicBus.gain.setTargetAtTime(mode === "victory" ? 0.3 : 0.22, now, 0.25);
+    }
+  }
+
+  footstep(material: "wood" | "stone" | "metal" = "wood"): void {
+    if (!this.ready()) return;
+    if (material === "wood") {
+      this.noise(0.035, 0.035, 880);
+      this.tone(96, 0.045, "triangle", 0.025, 72);
+    } else if (material === "stone") {
+      this.noise(0.025, 0.045, 1800);
+      this.tone(185, 0.026, "square", 0.018, 130);
+    } else {
+      this.tone(470, 0.07, "sine", 0.026, 290);
+      this.noise(0.018, 0.028, 3200);
+    }
+  }
+
+  sfx(name: SoundName): void {
+    if (!this.ready()) return;
+    switch (name) {
+      case "attack":
+        this.sweep(520, 1120, 0.085, 0.09, "sawtooth");
+        this.noise(0.055, 0.07, 4200);
+        break;
+      case "heavy":
+        this.sweep(310, 1280, 0.14, 0.13, "sawtooth");
+        this.noise(0.09, 0.12, 2600);
+        this.tone(74, 0.11, "triangle", 0.1, 48);
+        break;
+      case "hit":
+        this.noise(0.045, 0.13, 5200);
+        this.tone(128, 0.065, "square", 0.09, 72);
+        this.tone(940 + Math.random() * 80, 0.05, "sine", 0.045, 610);
+        break;
+      case "kill":
+        this.noise(0.16, 0.15, 1900);
+        this.sweep(180, 55, 0.2, 0.14, "sawtooth");
+        this.chime([659, 988, 1318], 0.22, 0.05);
+        break;
+      case "dash":
+        this.noise(0.12, 0.105, 1700);
+        this.sweep(820, 150, 0.12, 0.09, "triangle");
+        break;
+      case "dodge":
+        this.chime([880, 1320, 1760], 0.32, 0.085);
+        this.sweep(120, 950, 0.16, 0.055, "sine");
+        break;
+      case "charm":
+        this.chime([523, 784, 1046], 0.24, 0.05);
+        this.sweep(420, 920, 0.18, 0.045, "sine");
+        break;
+      case "jump":
+        this.sweep(190, 420, 0.08, 0.045, "square");
+        break;
+      case "land":
+        this.noise(0.07, 0.08, 610);
+        this.tone(58, 0.08, "triangle", 0.065, 42);
+        break;
+      case "hurt":
+        this.noise(0.1, 0.13, 520);
+        this.sweep(180, 72, 0.15, 0.11, "square");
+        break;
+      case "enemyCue":
+        this.tone(210, 0.25, "sawtooth", 0.075, 120);
+        this.tone(318, 0.18, "square", 0.04, 190, 0.04);
+        break;
+      case "break":
+        this.noise(0.22, 0.13, 1400);
+        this.tone(72, 0.14, "triangle", 0.08, 45);
+        break;
+      case "boss":
+        this.tone(49, 0.75, "sawtooth", 0.16, 38);
+        this.tone(74, 0.62, "square", 0.06, 55, 0.08);
+        this.noise(0.32, 0.09, 650);
+        break;
+      case "ultimate":
+        this.sweep(86, 1420, 0.55, 0.16, "sawtooth");
+        this.chime([440, 660, 880, 1320], 0.72, 0.085, 0.12);
+        this.noise(0.5, 0.18, 3600, 0.14);
+        break;
+      case "victory":
+        this.chime([392, 523, 659, 784, 1046], 1.2, 0.075);
+        break;
+      case "select":
+        this.chime([660, 990], 0.16, 0.04);
+        break;
+    }
+  }
+
+  private ready(): boolean {
+    return Boolean(this.context && this.sfxBus && this.context.state === "running" && !this.muted);
+  }
+
+  private startMusicLoop(): void {
+    window.clearInterval(this.musicTimer);
+    this.musicTimer = window.setInterval(() => this.musicTick(), 118);
+  }
+
+  private musicTick(): void {
+    if (!this.context || !this.musicBus || this.context.state !== "running" || this.muted) return;
+    const step = this.musicStep++;
+    const exploreScale = [110, 130.81, 146.83, 164.81, 196, 220];
+    const combatScale = [110, 130.81, 146.83, 174.61, 196, 233.08];
+    const scale = this.mode === "boss" ? combatScale : exploreScale;
+    const phrase = this.mode === "boss"
+      ? [0, 3, 1, 4, 2, 5, 4, 1, 0, 4, 2, 5, 3, 1, 4, 2]
+      : [0, -1, 2, -1, 4, -1, 3, -1, 1, -1, 3, -1, 5, -1, 2, -1];
+    const index = phrase[step % phrase.length];
+    const speedGate = this.mode === "explore" ? step % 2 === 0 : true;
+
+    if (index >= 0 && speedGate) {
+      const frequency = scale[index] * (this.mode === "boss" && step % 4 === 3 ? 2 : 1);
+      this.pluck(frequency, this.mode === "boss" ? 0.12 : 0.19, this.mode === "boss" ? 0.045 : 0.032);
+    }
+
+    const beatRate = this.mode === "explore" ? 8 : this.mode === "combat" ? 4 : 2;
+    if (step % beatRate === 0) this.drum(step % (beatRate * 2) === 0 ? 74 : 92, this.mode === "boss" ? 0.08 : 0.045);
+    if (this.mode === "boss" && step % 4 === 2) this.noiseTo(this.musicBus, 0.035, 0.025, 5200);
+    if (this.mode === "victory" && step % 8 === 0) {
+      const chord = step % 16 === 0 ? [261.63, 329.63, 392] : [293.66, 369.99, 440];
+      this.chimeTo(this.musicBus, chord, 0.72, 0.028);
+    }
+  }
+
+  private pluck(frequency: number, duration: number, volume: number): void {
+    if (!this.context || !this.musicBus) return;
+    const now = this.context.currentTime;
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(frequency, now);
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(2200, now);
+    filter.frequency.exponentialRampToValueAtTime(520, now + duration);
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.musicBus);
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  }
+
+  private drum(frequency: number, volume: number): void {
+    if (!this.context || !this.musicBus) return;
+    const now = this.context.currentTime;
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(frequency * 1.8, now);
+    osc.frequency.exponentialRampToValueAtTime(frequency, now + 0.06);
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+    osc.connect(gain);
+    gain.connect(this.musicBus);
+    osc.start(now);
+    osc.stop(now + 0.14);
+  }
+
+  private tone(
+    frequency: number,
+    duration: number,
+    type: OscillatorType,
+    volume: number,
+    endFrequency = frequency,
+    delay = 0,
+  ): void {
+    if (!this.context || !this.sfxBus) return;
+    this.toneTo(this.sfxBus, frequency, duration, type, volume, endFrequency, delay);
+  }
+
+  private toneTo(
+    destination: AudioNode,
+    frequency: number,
+    duration: number,
+    type: OscillatorType,
+    volume: number,
+    endFrequency = frequency,
+    delay = 0,
+  ): void {
+    if (!this.context) return;
+    const now = this.context.currentTime + delay;
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(Math.max(1, frequency), now);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, endFrequency), now + duration);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), now + Math.min(0.012, duration * 0.2));
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    osc.connect(gain);
+    gain.connect(destination);
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  }
+
+  private sweep(from: number, to: number, duration: number, volume: number, type: OscillatorType): void {
+    this.tone(from, duration, type, volume, to);
+  }
+
+  private chime(frequencies: number[], duration: number, volume: number, delay = 0): void {
+    if (!this.sfxBus) return;
+    this.chimeTo(this.sfxBus, frequencies, duration, volume, delay);
+  }
+
+  private chimeTo(destination: AudioNode, frequencies: number[], duration: number, volume: number, delay = 0): void {
+    frequencies.forEach((frequency, index) => {
+      this.toneTo(destination, frequency, duration + index * 0.045, "sine", volume / Math.sqrt(frequencies.length), frequency * 0.995, delay + index * 0.028);
+    });
+  }
+
+  private noise(duration: number, volume: number, cutoff: number, delay = 0): void {
+    if (!this.sfxBus) return;
+    this.noiseTo(this.sfxBus, duration, volume, cutoff, delay);
+  }
+
+  private noiseTo(destination: AudioNode, duration: number, volume: number, cutoff: number, delay = 0): void {
+    if (!this.context || !this.noiseBuffer) return;
+    const now = this.context.currentTime + delay;
+    const source = this.context.createBufferSource();
+    const filter = this.context.createBiquadFilter();
+    const gain = this.context.createGain();
+    source.buffer = this.noiseBuffer;
+    filter.type = "bandpass";
+    filter.frequency.value = cutoff;
+    filter.Q.value = 0.7;
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(destination);
+    source.start(now, Math.random() * 0.4);
+    source.stop(now + duration + 0.02);
+  }
+
+  private createNoiseBuffer(): AudioBuffer {
+    if (!this.context) throw new Error("Audio context is not initialized");
+    const length = Math.floor(this.context.sampleRate * 2);
+    const buffer = this.context.createBuffer(1, length, this.context.sampleRate);
+    const data = buffer.getChannelData(0);
+    let previous = 0;
+    for (let index = 0; index < length; index += 1) {
+      const white = Math.random() * 2 - 1;
+      previous = previous * 0.78 + white * 0.22;
+      data[index] = previous;
+    }
+    return buffer;
+  }
+
+  private startRainBed(): void {
+    if (!this.context || !this.noiseBuffer || !this.musicBus) return;
+    const source = this.context.createBufferSource();
+    const filter = this.context.createBiquadFilter();
+    const gain = this.context.createGain();
+    source.buffer = this.noiseBuffer;
+    source.loop = true;
+    filter.type = "highpass";
+    filter.frequency.value = 1200;
+    gain.gain.value = 0.017;
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.musicBus);
+    source.start();
+  }
+}
+
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+  }
+}

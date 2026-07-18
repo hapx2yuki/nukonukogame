@@ -1,0 +1,5 @@
+.git/
+.playwright-cli/
+node_modules/
+output/
+tmp/
