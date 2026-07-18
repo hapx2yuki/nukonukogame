@@ -21,7 +21,8 @@ const KEY_BINDINGS: Record<string, Action> = {
 };
 
 export class Input {
-  private held = new Set<Action>();
+  private keyboardHeld = new Set<Action>();
+  private touchHeld = new Set<Action>();
   private pressed = new Set<Action>();
   private gamepadHeld = new Set<Action>();
   private touchElements: HTMLElement[] = [];
@@ -41,7 +42,7 @@ export class Input {
   }
 
   down(action: Action): boolean {
-    return this.held.has(action) || this.gamepadHeld.has(action);
+    return this.keyboardHeld.has(action) || this.touchHeld.has(action) || this.gamepadHeld.has(action);
   }
 
   consume(action: Action): boolean {
@@ -51,12 +52,12 @@ export class Input {
   }
 
   press(action: Action): void {
-    if (!this.held.has(action)) this.pressed.add(action);
-    this.held.add(action);
+    if (!this.down(action)) this.pressed.add(action);
+    this.touchHeld.add(action);
   }
 
   release(action: Action): void {
-    this.held.delete(action);
+    this.touchHeld.delete(action);
   }
 
   pollGamepad(): void {
@@ -79,7 +80,9 @@ export class Input {
     if (pad.buttons[0]?.pressed) next.add("confirm");
 
     next.forEach((action) => {
-      if (!this.gamepadHeld.has(action) && !this.held.has(action)) this.pressed.add(action);
+      if (!this.gamepadHeld.has(action) && !this.keyboardHeld.has(action) && !this.touchHeld.has(action)) {
+        this.pressed.add(action);
+      }
     });
     this.gamepadHeld = next;
   }
@@ -89,7 +92,8 @@ export class Input {
   }
 
   reset(): void {
-    this.held.clear();
+    this.keyboardHeld.clear();
+    this.touchHeld.clear();
     this.pressed.clear();
     this.gamepadHeld.clear();
     this.activeTouchPointers.clear();
@@ -110,14 +114,14 @@ export class Input {
     const action = KEY_BINDINGS[event.code];
     if (!action) return;
     if (["ArrowLeft", "ArrowRight", "ArrowDown", "Space"].includes(event.code)) event.preventDefault();
-    if (!event.repeat && !this.held.has(action)) this.pressed.add(action);
-    this.held.add(action);
+    if (!event.repeat && !this.down(action)) this.pressed.add(action);
+    this.keyboardHeld.add(action);
   }
 
   private onKeyUp(event: KeyboardEvent): void {
     const action = KEY_BINDINGS[event.code];
     if (!action) return;
-    this.held.delete(action);
+    this.keyboardHeld.delete(action);
   }
 
   private bindTouchControls(): void {

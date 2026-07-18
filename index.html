@@ -54,96 +54,104 @@
           </div>
         </div>
 
-        <div id="game-frame" class="game-frame">
-          <canvas id="game-canvas" width="1920" height="1080" tabindex="0" aria-label="某美少女Nの横スクロールアクションゲーム"></canvas>
-          <div class="canvas-glass" aria-hidden="true"></div>
-          <div id="cinema-bars" class="cinema-bars" aria-hidden="true"><i></i><i></i></div>
+        <div class="game-stage">
+          <div id="game-frame" class="game-frame">
+            <canvas id="game-canvas" width="1920" height="1080" tabindex="0" aria-label="某美少女Nの横スクロールアクションゲーム"></canvas>
+            <div class="canvas-glass" aria-hidden="true"></div>
+            <div id="cinema-bars" class="cinema-bars" aria-hidden="true"><i></i><i></i></div>
 
-          <div id="story-overlay" class="overlay story-overlay" aria-live="polite">
-            <div class="speaker-mark" aria-hidden="true">N</div>
-            <div class="story-copy">
-              <p id="story-speaker">某美少女N</p>
-              <p id="story-text"></p>
-              <span id="story-hint">決定して進む</span>
-            </div>
-          </div>
-
-          <div id="boss-title" class="boss-title" aria-live="assertive">
-            <span>日輪符・第玖片</span>
-            <strong>緋月の剣巫　鈴霞</strong>
-            <em>THE CRIMSON VOW</em>
-          </div>
-
-          <div id="upgrade-overlay" class="overlay full-overlay upgrade-overlay" aria-labelledby="upgrade-title">
-            <div class="overlay-panel">
-              <p class="panel-kicker">日輪符が共鳴している</p>
-              <h2 id="upgrade-title">ひとつの残響を選べ</h2>
-              <p>この夜で得られる加護は一つだけ。</p>
-              <div class="upgrade-grid">
-                <button class="upgrade-card" type="button" data-upgrade="fire">
-                  <span class="upgrade-icon">焔</span><small>影走り強化</small><strong>猫又火</strong><em>残像が金炎となり、敵を灼く</em><kbd>1</kbd>
-                </button>
-                <button class="upgrade-card" type="button" data-upgrade="bell">
-                  <span class="upgrade-icon">鈴</span><small>寸前回避強化</small><strong>金鈴返し</strong><em>金刻の瞬間、三方向へ光を返す</em><kbd>2</kbd>
-                </button>
-                <button class="upgrade-card" type="button" data-upgrade="moon">
-                  <span class="upgrade-icon">月</span><small>連撃強化</small><strong>残月爪</strong><em>三段目の斬撃が月刃を放つ</em><kbd>3</kbd>
-                </button>
+            <div id="story-overlay" class="overlay story-overlay" aria-live="polite">
+              <div class="speaker-mark" aria-hidden="true">N</div>
+              <div class="story-copy">
+                <p id="story-speaker">某美少女N</p>
+                <p id="story-text"></p>
+                <span id="story-hint">決定して進む</span>
               </div>
             </div>
-          </div>
 
-          <div id="pause-overlay" class="overlay full-overlay pause-overlay" aria-labelledby="pause-title">
-            <div class="overlay-panel pause-panel">
-              <p class="panel-kicker">PAUSE</p>
-              <h2 id="pause-title">影の狭間</h2>
-              <div class="setting-row"><span>効果音・音楽</span><button id="pause-sound" type="button">ON</button></div>
-              <div class="setting-row"><span>画面の揺れ</span><button id="shake-toggle" type="button">標準</button></div>
-              <div class="setting-row"><span>強い光の演出</span><button id="flash-toggle" type="button">標準</button></div>
-              <button id="resume-button" class="primary-button compact" type="button">戦いへ戻る</button>
-              <button id="title-button" class="quiet-button" type="button">タイトルへ戻る</button>
+            <div id="boss-title" class="boss-title" aria-live="assertive">
+              <span>日輪符・第玖片</span>
+              <strong>緋月の剣巫　鈴霞</strong>
+              <em>THE CRIMSON VOW</em>
             </div>
-          </div>
 
-          <div id="results-overlay" class="overlay full-overlay results-overlay" aria-labelledby="results-title">
-            <div class="results-panel">
-              <p class="panel-kicker">FIRST NIGHT CLEARED</p>
-              <h2 id="results-title">夜明けの残響</h2>
-              <div id="result-rank" class="result-rank">天</div>
-              <p id="result-epilogue" class="result-epilogue">日輪符は光った。けれど、思い出せない名前がまた一つ増えた。</p>
-              <dl class="result-stats">
-                <div><dt>踏破時間</dt><dd id="result-time">--:--</dd></div>
-                <div><dt>最大連撃</dt><dd id="result-combo">0</dd></div>
-                <div><dt>寸前回避</dt><dd id="result-dodges">0</dd></div>
-                <div><dt>総合得点</dt><dd id="result-score">0</dd></div>
-              </dl>
-              <p id="best-score" class="best-score"></p>
-              <a class="subscribe-cta" href="https://x.com/nukonuko/creator-subscriptions/subscribe" target="_blank" rel="noopener noreferrer">
-                <span>某美少女Nの次の夜を応援</span>
-                <strong>Xでサブスクライブ</strong>
-                <i aria-hidden="true">↗</i>
-              </a>
-              <div class="result-actions">
-                <button id="retry-button" class="primary-button compact" type="button">もう一度、夜へ</button>
-                <button id="result-title-button" class="quiet-button" type="button">タイトルへ</button>
+            <div id="upgrade-overlay" class="overlay full-overlay upgrade-overlay" aria-labelledby="upgrade-title">
+              <div class="overlay-panel">
+                <p class="panel-kicker">日輪符が共鳴している</p>
+                <h2 id="upgrade-title">ひとつの残響を選べ</h2>
+                <p>この夜で得られる加護は一つだけ。</p>
+                <div class="upgrade-grid">
+                  <button class="upgrade-card" type="button" data-upgrade="fire">
+                    <span class="upgrade-icon">焔</span><small>影走り強化</small><strong>猫又火</strong><em>残像が金炎となり、敵を灼く</em><kbd>1</kbd>
+                  </button>
+                  <button class="upgrade-card" type="button" data-upgrade="bell">
+                    <span class="upgrade-icon">鈴</span><small>寸前回避強化</small><strong>金鈴返し</strong><em>金刻の瞬間、三方向へ光を返す</em><kbd>2</kbd>
+                  </button>
+                  <button class="upgrade-card" type="button" data-upgrade="moon">
+                    <span class="upgrade-icon">月</span><small>連撃強化</small><strong>残月爪</strong><em>三段目の斬撃が月刃を放つ</em><kbd>3</kbd>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div id="pause-overlay" class="overlay full-overlay pause-overlay" aria-labelledby="pause-title">
+              <div class="overlay-panel pause-panel">
+                <p class="panel-kicker">PAUSE</p>
+                <h2 id="pause-title">影の狭間</h2>
+                <div class="setting-row"><span>効果音・音楽</span><button id="pause-sound" type="button">ON</button></div>
+                <div class="setting-row"><span>画面の揺れ</span><button id="shake-toggle" type="button">標準</button></div>
+                <div class="setting-row"><span>強い光の演出</span><button id="flash-toggle" type="button">標準</button></div>
+                <button id="resume-button" class="primary-button compact" type="button">戦いへ戻る</button>
+                <button id="title-button" class="quiet-button" type="button">タイトルへ戻る</button>
+              </div>
+            </div>
+
+            <div id="results-overlay" class="overlay full-overlay results-overlay" aria-labelledby="results-title">
+              <div class="results-panel">
+                <p class="panel-kicker">FIRST NIGHT CLEARED</p>
+                <h2 id="results-title">夜明けの残響</h2>
+                <div id="result-rank" class="result-rank">天</div>
+                <p id="result-epilogue" class="result-epilogue">日輪符は光った。けれど、思い出せない名前がまた一つ増えた。</p>
+                <dl class="result-stats">
+                  <div><dt>踏破時間</dt><dd id="result-time">--:--</dd></div>
+                  <div><dt>最大連撃</dt><dd id="result-combo">0</dd></div>
+                  <div><dt>寸前回避</dt><dd id="result-dodges">0</dd></div>
+                  <div><dt>総合得点</dt><dd id="result-score">0</dd></div>
+                </dl>
+                <p id="best-score" class="best-score"></p>
+                <a class="subscribe-cta" href="https://x.com/nukonuko/creator-subscriptions/subscribe" target="_blank" rel="noopener noreferrer">
+                  <span>某美少女Nの次の夜を応援</span>
+                  <strong>Xでサブスクライブ</strong>
+                  <i aria-hidden="true">↗</i>
+                </a>
+                <div class="result-actions">
+                  <button id="retry-button" class="primary-button compact" type="button">もう一度、夜へ</button>
+                  <button id="result-title-button" class="quiet-button" type="button">タイトルへ</button>
+                </div>
               </div>
             </div>
           </div>
 
           <div id="touch-controls" class="touch-controls" aria-label="タッチ操作">
             <div class="touch-left">
-              <button type="button" data-control="left" aria-label="左へ移動">◀</button>
-              <button type="button" class="down" data-control="down" aria-label="下へ移動、またはしゃがむ">▼</button>
-              <button type="button" data-control="right" aria-label="右へ移動">▶</button>
+              <span class="touch-rail-label" aria-hidden="true">MOVE</span>
+              <div class="touch-dpad">
+                <button type="button" class="move-left" data-control="left" aria-label="左へ移動"><span>◀</span><small>LEFT</small></button>
+                <button type="button" class="down" data-control="down" aria-label="しゃがむ、または空中で急降下"><span>▼</span><small>DOWN</small></button>
+                <button type="button" class="move-right" data-control="right" aria-label="右へ移動"><span>▶</span><small>RIGHT</small></button>
+              </div>
             </div>
             <div class="touch-right">
-              <button type="button" class="touch-small charm" data-control="charm" aria-label="護符">符</button>
-              <button type="button" class="touch-small ultimate" data-control="ultimate" aria-label="必殺技GMK、現在0/5">
-                <span>必</span><small id="gmk-touch-count">0/5</small>
-              </button>
-              <button type="button" class="jump" data-control="jump" aria-label="跳ぶ">跳</button>
-              <button type="button" class="dash" data-control="dash" aria-label="影走り">影</button>
-              <button type="button" class="attack" data-control="attack" aria-label="斬撃">斬</button>
+              <span class="touch-rail-label" aria-hidden="true">ACTION</span>
+              <div class="touch-action-cluster">
+                <button type="button" class="charm" data-control="charm" aria-label="護符を投げる"><span>符</span><small>CHARM</small></button>
+                <button type="button" class="ultimate" data-control="ultimate" aria-label="必殺技GMK、現在0/5">
+                  <span>GMK</span><small id="gmk-touch-count">0/5</small>
+                </button>
+                <button type="button" class="jump" data-control="jump" aria-label="跳ぶ"><span>跳</span><small>JUMP</small></button>
+                <button type="button" class="dash" data-control="dash" aria-label="影走り"><span>影</span><small>DASH</small></button>
+                <button type="button" class="attack" data-control="attack" aria-label="斬撃"><span>斬</span><small>ATTACK</small></button>
+              </div>
             </div>
           </div>
         </div>
@@ -164,7 +172,7 @@
           <div><span>02</span><strong>影を走る</strong><p>敵の攻撃直前に<kbd>L</kbd>。時が止まる「金刻」が発生。</p></div>
           <div><span>03</span><strong>GMK</strong><p>敵に攻撃を5回当てると発動可能。<kbd>E</kbd>で画面すべてを断つ奥義。</p></div>
         </div>
-        <p class="howto-note">ゲームパッド：左スティック / A 跳ぶ / X 斬撃 / Y 護符 / RB 影走り / LT+RT 奥義　スマホ：画面上の操作ボタンに対応</p>
+        <p class="howto-note">ゲームパッド：左スティック / A 跳ぶ / X 斬撃 / Y 護符 / RB 影走り / LT+RT 奥義　スマホ：横向きで、左の操作帯が移動、右の操作帯が攻撃</p>
         <button class="primary-button compact" value="close">わかった</button>
       </form>
     </dialog>

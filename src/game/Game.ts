@@ -513,6 +513,10 @@ export class Game {
     this.audio.setMode("explore");
   }
 
+  releaseInputs(): void {
+    this.input.reset();
+  }
+
   togglePause(): void {
     if (this.state === "paused") {
       this.resume();
@@ -521,6 +525,7 @@ export class Game {
     if (this.state !== "playing") return;
     this.previousState = this.state;
     this.state = "paused";
+    this.input.reset();
     this.pauseOverlay.classList.add("is-visible");
     this.announce("一時停止");
   }
@@ -529,7 +534,7 @@ export class Game {
     if (this.state !== "paused") return;
     this.state = this.previousState === "paused" ? "playing" : this.previousState;
     this.pauseOverlay.classList.remove("is-visible");
-    this.input.clearPressed();
+    this.input.reset();
   }
 
   returnToTitle(): void {
@@ -1113,6 +1118,7 @@ export class Game {
     if (!this.upgradeTriggered && this.player.x > 1980) {
       this.upgradeTriggered = true;
       this.state = "upgrade";
+      this.input.reset();
       this.upgradeOverlay.classList.add("is-visible");
       this.audio.sfx("select");
       this.announce("日輪符の加護を選ぶ");
@@ -1142,6 +1148,7 @@ export class Game {
   private triggerBoss(): void {
     this.bossTriggered = true;
     this.state = "cinematic";
+    this.input.reset();
     this.bossIntroTimer = 2.65;
     const boss = this.enemies.find((enemy) => enemy.kind === "boss");
     if (boss) {
@@ -1943,7 +1950,7 @@ export class Game {
     this.state = "story";
     this.storyOverlay.classList.add("is-visible");
     this.updateDialogueText();
-    this.input.clearPressed();
+    this.input.reset();
   }
 
   private updateDialogue(delta: number): void {
@@ -1970,7 +1977,7 @@ export class Game {
       const done = this.dialogueOnDone;
       this.dialogueOnDone = null;
       done?.();
-      this.input.clearPressed();
+      this.input.reset();
       return;
     }
     this.dialogueTyped = 0;
@@ -2028,6 +2035,7 @@ export class Game {
 
   private showResults(): void {
     this.state = "victory";
+    this.input.reset();
     this.cinemaBars.classList.remove("is-visible");
     this.resultsOverlay.classList.add("is-visible");
     const timeBonus = Math.max(0, Math.floor(36000 - this.runTime * 80));

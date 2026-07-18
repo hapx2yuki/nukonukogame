@@ -137,7 +137,9 @@ document.addEventListener("fullscreenchange", syncFullscreenButton);
 
 document.addEventListener("pointerdown", () => void audio.start(), { once: true });
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && !game.isPaused) game.togglePause();
+  if (!document.hidden) return;
+  game.releaseInputs();
+  if (!game.isPaused) game.togglePause();
 });
 
 const keyArt = document.querySelector<HTMLImageElement>(".key-art");
