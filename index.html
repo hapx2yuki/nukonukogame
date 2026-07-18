@@ -9,6 +9,8 @@
     <link rel="preload" href="/assets/game/hero-sprites.png" as="image" fetchpriority="high" />
     <link rel="preload" href="/assets/game/enemy-sprites.png" as="image" />
     <link rel="preload" href="/assets/game/props.png" as="image" />
+    <link rel="preload" href="/assets/game/helper-sprites.png" as="image" />
+    <link rel="preload" href="/assets/game/gadget-sprites.png" as="image" />
     <link rel="preload" href="/assets/game/gmk-cutin.png" as="image" />
     <meta name="description" content="猫耳の祓い手『某美少女N』を操る、短編2D横スクロール・ドット絵アクションRPG。" />
     <title>宵猫綺譚 ― 某美少女N ―</title>
@@ -35,7 +37,7 @@
             <button id="howto-button" class="quiet-button" type="button">遊び方</button>
           </div>
           <div class="title-meta">
-            <span>推奨：キーボード / ゲームパッド</span>
+            <span>対応：キーボード / ゲームパッド / タッチ操作</span>
             <span>音が出ます</span>
           </div>
         </div>
@@ -131,11 +133,14 @@
           <div id="touch-controls" class="touch-controls" aria-label="タッチ操作">
             <div class="touch-left">
               <button type="button" data-control="left" aria-label="左へ移動">◀</button>
+              <button type="button" class="down" data-control="down" aria-label="下へ移動、またはしゃがむ">▼</button>
               <button type="button" data-control="right" aria-label="右へ移動">▶</button>
             </div>
             <div class="touch-right">
               <button type="button" class="touch-small charm" data-control="charm" aria-label="護符">符</button>
-              <button type="button" class="touch-small ultimate" data-control="ultimate" aria-label="必殺技GMK">G</button>
+              <button type="button" class="touch-small ultimate" data-control="ultimate" aria-label="必殺技GMK、現在0/5">
+                <span>必</span><small id="gmk-touch-count">0/5</small>
+              </button>
               <button type="button" class="jump" data-control="jump" aria-label="跳ぶ">跳</button>
               <button type="button" class="dash" data-control="dash" aria-label="影走り">影</button>
               <button type="button" class="attack" data-control="attack" aria-label="斬撃">斬</button>
@@ -157,14 +162,14 @@
         <div class="howto-list">
           <div><span>01</span><strong>斬る</strong><p><kbd>J</kbd>を続けて三段斬り。空中と急降下にも派生。</p></div>
           <div><span>02</span><strong>影を走る</strong><p>敵の攻撃直前に<kbd>L</kbd>。時が止まる「金刻」が発生。</p></div>
-          <div><span>03</span><strong>GMK</strong><p>護符が三つ灯ったら<kbd>E</kbd>。カットインから画面すべてを断つ奥義。</p></div>
+          <div><span>03</span><strong>GMK</strong><p>敵に攻撃を5回当てると発動可能。<kbd>E</kbd>で画面すべてを断つ奥義。</p></div>
         </div>
-        <p class="howto-note">ゲームパッド：左スティック / A 跳ぶ / X 斬撃 / Y 護符 / RB 影走り / LT+RT 奥義</p>
+        <p class="howto-note">ゲームパッド：左スティック / A 跳ぶ / X 斬撃 / Y 護符 / RB 影走り / LT+RT 奥義　スマホ：画面上の操作ボタンに対応</p>
         <button class="primary-button compact" value="close">わかった</button>
       </form>
     </dialog>
 
-    <div id="rotate-hint" class="rotate-hint" role="status"><span>端末を横向きにすると<br />より遊びやすくなります</span></div>
+    <div id="rotate-hint" class="rotate-hint" role="status"><span>画面回転ロックを解除し、<br />端末を横向きにしてください</span></div>
     <div id="aria-live" class="sr-only" aria-live="polite"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

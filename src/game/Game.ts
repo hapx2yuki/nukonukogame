@@ -8,13 +8,17 @@ const GRAVITY = 690;
 const PLAYER_SPEED = 114;
 const ULTIMATE_DURATION = 2.15;
 const ULTIMATE_STRIKE_AT = 0.47;
+const ULTIMATE_HITS_REQUIRED = 5;
+const HELPER_TRIGGER_X = 2300;
 
 type GameState = "idle" | "story" | "playing" | "upgrade" | "paused" | "cinematic" | "victory" | "dead";
 type Upgrade = "fire" | "bell" | "moon" | null;
 type EnemyKind = "lantern" | "hound" | "bird" | "boss";
 type EnemyState = "idle" | "chase" | "telegraph" | "attack" | "dash" | "recover" | "stagger" | "dead";
-type ProjectileKind = "charm" | "moon" | "bell" | "ember" | "feather" | "wave" | "seal";
+type ProjectileKind = "charm" | "moon" | "bell" | "ember" | "feather" | "wave" | "seal" | "gadget";
 type ParticleKind = "spark" | "paper" | "smoke" | "ember" | "shard" | "dust";
+type DamageSource = "player" | "ultimate" | "helper";
+type HelperState = "absent" | "entrance" | "follow" | "throw" | "cheer";
 
 interface Platform {
   x: number;
@@ -97,7 +101,7 @@ interface Enemy {
 
 interface Projectile {
   id: number;
-  owner: "player" | "enemy";
+  owner: "player" | "enemy" | "helper";
   kind: ProjectileKind;
   x: number;
   y: number;
@@ -111,6 +115,21 @@ interface Projectile {
   angle: number;
   returning: boolean;
   hitIds: Set<number>;
+  gadgetFrame?: number;
+}
+
+interface Helper {
+  active: boolean;
+  x: number;
+  y: number;
+  vx: number;
+  facing: 1 | -1;
+  state: HelperState;
+  stateTimer: number;
+  throwCooldown: number;
+  gadgetCursor: number;
+  gadgetLabel: string;
+  labelTimer: number;
 }
 
 interface Particle {
@@ -353,6 +372,7 @@ export class Game {
   private checkpointX = 70;
   private upgrade: Upgrade = null;
   private upgradeTriggered = false;
+  private helperTriggered = false;
   private midStoryTriggered = false;
   private bossTriggered = false;
   private bossDefeated = false;
@@ -382,7 +402,10 @@ export class Game {
   private dialogueOnDone: (() => void) | null = null;
   private footstepTimer = 0;
   private player: Player = this.createPlayer();
+  private helper: Helper = this.createHelper();
   private heroSheet = loadGameImage("/assets/game/hero-sprites.png");
+  private helperSheet = loadGameImage("/assets/game/helper-sprites.png");
+  private gadgetSheet = loadGameImage("/assets/game/gadget-sprites.png");
   private enemySheet = loadGameImage("/assets/game/enemy-sprites.png");
   private propsSheet = loadGameImage("/assets/game/props.png");
   private backgroundPlate = loadGameImage("/assets/game/glass-slope-background.png");
@@ -398,6 +421,8 @@ export class Game {
   private bossTitle = element<HTMLDivElement>("boss-title");
   private cinemaBars = element<HTMLDivElement>("cinema-bars");
   private ariaLive = element<HTMLDivElement>("aria-live");
+  private ultimateButton = document.querySelector<HTMLButtonElement>('[data-control="ultimate"]');
+  private ultimateTouchCount = element<HTMLElement>("gmk-touch-count");
 
   constructor(canvas: HTMLCanvasElement, audio: AudioEngine, callbacks: GameCallbacks) {
     const context = canvas.getContext("2d", { alpha: false });
@@ -408,6 +433,7 @@ export class Game {
     this.callbacks = callbacks;
     this.input = new Input();
     this.buildWorld();
+    this.syncUltimateUi();
     this.storyOverlay.addEventListener("click", () => this.advanceDialogue());
     this.loop(performance.now());
   }
@@ -432,12 +458,20 @@ export class Game {
     if (debug === "boss" || debug === "victory") {
       this.state = "playing";
       this.player.x = 4240;
-      this.player.focus = 3;
+      this.player.focus = ULTIMATE_HITS_REQUIRED;
+      this.player.invulnerable = 999;
       this.cameraX = 4080;
       this.checkpointX = 4150;
       this.upgrade = "moon";
       this.upgradeTriggered = true;
+      this.helperTriggered = true;
+      this.helper = this.createHelper();
+      this.helper.active = true;
+      this.helper.state = "follow";
+      this.helper.x = this.player.x - 64;
+      this.helper.y = this.player.y - 4;
       this.midStoryTriggered = true;
+      this.syncUltimateUi();
       this.triggerBoss();
       if (debug === "victory") {
         const boss = this.enemies.find((enemy) => enemy.kind === "boss");
@@ -565,9 +599,26 @@ export class Game {
     };
   }
 
+  private createHelper(): Helper {
+    return {
+      active: false,
+      x: 0,
+      y: 176,
+      vx: 0,
+      facing: 1,
+      state: "absent",
+      stateTimer: 0,
+      throwCooldown: 0.72,
+      gadgetCursor: 0,
+      gadgetLabel: "",
+      labelTimer: 0,
+    };
+  }
+
   private resetRun(): void {
     this.state = "idle";
     this.player = this.createPlayer();
+    this.helper = this.createHelper();
     this.cameraX = 0;
     this.cameraY = 0;
     this.elapsed = 0;
@@ -581,6 +632,7 @@ export class Game {
     this.checkpointX = 70;
     this.upgrade = null;
     this.upgradeTriggered = false;
+    this.helperTriggered = false;
     this.midStoryTriggered = false;
     this.bossTriggered = false;
     this.bossDefeated = false;
@@ -610,6 +662,7 @@ export class Game {
     this.bossTitle.classList.remove("is-visible");
     this.cinemaBars.classList.remove("is-visible");
     this.input.reset();
+    this.syncUltimateUi();
   }
 
   private buildWorld(): void {
@@ -719,6 +772,7 @@ export class Game {
 
     this.updatePlayer(delta);
     this.updateEnemies(delta);
+    this.updateHelper(delta);
     this.updateProjectiles(delta);
     this.updateParticles(delta);
     this.updateProps(delta);
@@ -979,7 +1033,6 @@ export class Game {
     this.hitStop = Math.max(this.hitStop, 0.035);
     this.shake = Math.max(this.shake, 3.3 * this.shakeScale);
     this.whiteFlash = this.flashes ? 0.38 : 0.08;
-    player.focus = Math.min(3, player.focus + 1);
     player.invulnerable = Math.max(player.invulnerable, 0.42);
     this.perfectDodges += 1;
     this.score += 280;
@@ -987,7 +1040,7 @@ export class Game {
     this.audio.sfx("dodge");
     this.addRing(player.x + player.w / 2, player.y + 18, "#ffe69a", 46);
     this.spawnBurst(player.x + player.w / 2, player.y + 17, "#ffbd45", 28, "spark");
-    this.announce(`完全回避　護符 ${player.focus}/3`);
+    this.announce("完全回避");
 
     if (this.upgrade === "bell") {
       for (const angle of [-0.38, 0, 0.38]) {
@@ -1002,11 +1055,14 @@ export class Game {
 
   private startUltimate(): void {
     const player = this.player;
-    if (player.focus < 3 || player.ultimateTimer > 0 || player.hurtTimer > 0) {
-      if (player.focus < 3) this.announce(`護符の灯りが足りない　${player.focus}/3`);
+    if (player.focus < ULTIMATE_HITS_REQUIRED || player.ultimateTimer > 0 || player.hurtTimer > 0) {
+      if (player.focus < ULTIMATE_HITS_REQUIRED) {
+        this.announce(`GMKまであと${ULTIMATE_HITS_REQUIRED - player.focus}回命中`);
+      }
       return;
     }
     player.focus = 0;
+    this.syncUltimateUi();
     player.ultimateTimer = ULTIMATE_DURATION;
     player.ultimateStruck = false;
     player.attackKind = "ultimate";
@@ -1028,7 +1084,7 @@ export class Game {
       this.whiteFlash = this.flashes ? 1 : 0.16;
       for (const enemy of this.enemies) {
         if (!enemy.active || enemy.state === "dead" || Math.abs(enemy.x - player.x) > 330) continue;
-        this.damageEnemy(enemy, enemy.kind === "boss" ? 96 : 120, 100, player.facing * 190, true);
+        this.damageEnemy(enemy, enemy.kind === "boss" ? 96 : 120, 100, player.facing * 190, true, "ultimate");
       }
       for (let offset = -220; offset <= 220; offset += 44) {
         this.slashes.push({
@@ -1063,6 +1119,11 @@ export class Game {
       return;
     }
 
+    if (!this.helperTriggered && this.player.x > HELPER_TRIGGER_X) {
+      this.triggerHelper();
+      return;
+    }
+
     if (!this.midStoryTriggered && this.player.x > 3300) {
       this.midStoryTriggered = true;
       this.showDialogue(
@@ -1089,12 +1150,130 @@ export class Game {
     }
     this.player.x = Math.max(this.player.x, 4240);
     this.player.vx = 0;
+    if (this.helper.active) {
+      this.helper.x = this.player.x - 62;
+      this.helper.y = this.player.y;
+      this.helper.state = "follow";
+    }
     this.cameraX = 4160;
     this.cinemaBars.classList.add("is-visible");
     this.bossTitle.classList.add("is-visible");
     this.audio.setMode("boss");
     this.audio.sfx("boss");
     this.announce("緋月の剣巫　鈴霞");
+  }
+
+  private triggerHelper(): void {
+    this.helperTriggered = true;
+    this.helper = this.createHelper();
+    this.helper.active = true;
+    this.helper.state = "entrance";
+    this.helper.stateTimer = 1.1;
+    this.helper.x = this.player.x - 104;
+    this.helper.y = this.player.y - 24;
+    this.helper.facing = 1;
+    this.helper.throwCooldown = 0.48;
+    this.setSkillName("助っ人参戦・某ガジェオタG", 1.35);
+    this.spawnBurst(this.helper.x, this.helper.y + 28, "#74e4df", 28, "spark");
+    this.spawnBurst(this.helper.x, this.helper.y + 34, "#ffbd45", 18, "paper");
+    this.addRing(this.helper.x, this.helper.y + 24, "#ffe69a", 42);
+    this.audio.sfx("select");
+    this.announce("助っ人、某ガジェオタG参戦。ガジェット支援を開始");
+  }
+
+  private updateHelper(delta: number): void {
+    const helper = this.helper;
+    if (!helper.active) return;
+    const previousX = helper.x;
+
+    helper.stateTimer = Math.max(0, helper.stateTimer - delta);
+    helper.throwCooldown = Math.max(0, helper.throwCooldown - delta);
+    helper.labelTimer = Math.max(0, helper.labelTimer - delta);
+
+    const followX = this.player.x + this.player.w / 2 - this.player.facing * 58;
+    const followY = this.player.y + (this.player.grounded ? 0 : 8);
+
+    if (this.bossDefeated) {
+      helper.state = "cheer";
+      helper.stateTimer = Math.max(helper.stateTimer, 0.4);
+      helper.x = lerp(helper.x, this.player.x - 50, 1 - Math.pow(0.025, delta));
+      helper.y = lerp(helper.y, this.player.y, 1 - Math.pow(0.018, delta));
+      helper.vx = delta > 0 ? (helper.x - previousX) / delta : 0;
+      return;
+    }
+
+    if (helper.state === "entrance") {
+      helper.x = lerp(helper.x, followX, 1 - Math.pow(0.002, delta));
+      helper.y = lerp(helper.y, followY, 1 - Math.pow(0.002, delta));
+      helper.facing = 1;
+      helper.vx = delta > 0 ? (helper.x - previousX) / delta : 0;
+      if (helper.stateTimer <= 0) helper.state = "follow";
+      return;
+    }
+
+    helper.x = lerp(helper.x, followX, 1 - Math.pow(0.016, delta));
+    helper.y = lerp(helper.y, followY, 1 - Math.pow(0.012, delta));
+    helper.vx = delta > 0 ? (helper.x - previousX) / delta : 0;
+
+    const target = this.nearestHelperTarget();
+    if (target) helper.facing = target.x + target.w / 2 >= helper.x ? 1 : -1;
+    else helper.facing = this.player.facing;
+
+    if (helper.state === "throw" && helper.stateTimer <= 0) helper.state = "follow";
+    if (helper.state === "follow" && helper.throwCooldown <= 0 && target) this.throwHelperGadget(target);
+  }
+
+  private nearestHelperTarget(): Enemy | undefined {
+    return this.enemies
+      .filter((enemy) => enemy.active && enemy.state !== "dead" && Math.abs(enemy.x - this.player.x) < 430)
+      .sort((left, right) => Math.abs(left.x - this.helper.x) - Math.abs(right.x - this.helper.x))[0];
+  }
+
+  private throwHelperGadget(target: Enemy): void {
+    const helper = this.helper;
+    const frame = helper.gadgetCursor % 24;
+    const originX = helper.x + helper.facing * 15;
+    const originY = helper.y + 18;
+    const targetX = target.x + target.w / 2;
+    const targetY = target.y + target.h * 0.42;
+    const dx = targetX - originX;
+    const dy = targetY - originY;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const speed = 210 + seeded(frame + this.elapsed * 3) * 28;
+
+    this.projectiles.push({
+      id: this.nextEntityId++,
+      owner: "helper",
+      kind: "gadget",
+      x: originX,
+      y: originY,
+      vx: (dx / length) * speed,
+      vy: (dy / length) * speed,
+      w: 18,
+      h: 18,
+      life: 1.7,
+      maxLife: 1.7,
+      damage: target.kind === "boss" ? 2 : 3,
+      angle: helper.facing > 0 ? -0.1 : Math.PI + 0.1,
+      returning: false,
+      hitIds: new Set(),
+      gadgetFrame: frame,
+    });
+
+    helper.gadgetLabel = frame < 6
+      ? "SEGA 16-BIT"
+      : frame < 12
+        ? "FAMICOM"
+        : frame < 18
+          ? "EVEN G2"
+          : "MAC MINI";
+    helper.labelTimer = 0.82;
+    helper.gadgetCursor = (helper.gadgetCursor + 1) % 24;
+    helper.throwCooldown = 0.68 + seeded(helper.gadgetCursor * 17 + this.elapsed) * 0.22;
+    helper.state = "throw";
+    helper.stateTimer = 0.27;
+    this.spawnBurst(originX, originY, frame < 12 ? "#ffbd45" : "#74e4df", 6, "spark");
+    this.audio.sfx("charm");
   }
 
   private updateCinematic(delta: number): void {
@@ -1463,9 +1642,36 @@ export class Game {
     }
   }
 
-  private damageEnemy(enemy: Enemy, damage: number, poise: number, knockback: number, critical: boolean): void {
+  private damageEnemy(
+    enemy: Enemy,
+    damage: number,
+    poise: number,
+    knockback: number,
+    critical: boolean,
+    source: DamageSource = "player",
+  ): void {
     if (enemy.state === "dead" || enemy.invulnerable > 0) return;
-    enemy.hp = Math.max(0, enemy.hp - damage);
+
+    const appliedDamage = source === "helper"
+      ? Math.max(0, Math.min(damage, enemy.hp - 1))
+      : Math.min(damage, enemy.hp);
+    if (appliedDamage <= 0) return;
+
+    enemy.hp = Math.max(0, enemy.hp - appliedDamage);
+    if (source === "helper") {
+      enemy.hitFlash = Math.max(enemy.hitFlash, 0.45);
+      enemy.vx += Math.sign(knockback || 1) * 3;
+      this.damageNumbers.push({
+        x: enemy.x + enemy.w / 2,
+        y: enemy.y - 2,
+        value: appliedDamage,
+        life: 0.52,
+        critical: false,
+      });
+      this.spawnBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.42, "#74e4df", 5, "spark");
+      return;
+    }
+
     enemy.poise += poise;
     enemy.vx += knockback;
     enemy.hitFlash = 1;
@@ -1473,8 +1679,8 @@ export class Game {
     this.combo += 1;
     this.comboTimer = 1.45;
     this.maxCombo = Math.max(this.maxCombo, this.combo);
-    this.score += damage * 7 + this.combo * 5 + (critical ? 80 : 0);
-    this.damageNumbers.push({ x: enemy.x + enemy.w / 2, y: enemy.y - 5, value: damage, life: 0.72, critical });
+    this.score += appliedDamage * 7 + this.combo * 5 + (critical ? 80 : 0);
+    this.damageNumbers.push({ x: enemy.x + enemy.w / 2, y: enemy.y - 5, value: appliedDamage, life: 0.72, critical });
     this.spawnBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2, critical ? "#ffe69a" : "#ef8a73", critical ? 18 : 9, "spark");
     this.slashes.push({
       x: enemy.x + enemy.w / 2, y: enemy.y + enemy.h / 2, life: critical ? 0.18 : 0.11, maxLife: critical ? 0.18 : 0.11,
@@ -1485,6 +1691,7 @@ export class Game {
     this.shake = Math.max(this.shake, (critical ? 4.2 : 2) * this.shakeScale);
     this.whiteFlash = this.flashes ? Math.max(this.whiteFlash, critical ? 0.27 : 0.09) : 0;
     this.audio.sfx(enemy.hp <= 0 ? "kill" : "hit");
+    if (source === "player") this.chargeUltimate();
 
     if (enemy.hp <= 0) {
       enemy.state = "dead";
@@ -1511,7 +1718,10 @@ export class Game {
     this.victoryCountdown = 2.7;
     this.player.invulnerable = 5;
     this.player.vx = 0;
-    this.player.focus = 3;
+    if (this.helper.active) {
+      this.helper.state = "cheer";
+      this.helper.stateTimer = 3;
+    }
     this.hitStop = 0.16;
     this.shake = 7 * this.shakeScale;
     this.whiteFlash = this.flashes ? 1 : 0.15;
@@ -1565,6 +1775,13 @@ export class Game {
     this.player.x = this.checkpointX;
     this.player.y = 160;
     this.upgrade = upgrade;
+    this.helper = this.createHelper();
+    if (this.helperTriggered) {
+      this.helper.active = true;
+      this.helper.state = "follow";
+      this.helper.x = this.player.x - 58;
+      this.helper.y = this.player.y;
+    }
     this.projectiles = [];
     this.enemies = this.createEnemies();
     if (this.bossTriggered) {
@@ -1578,13 +1795,14 @@ export class Game {
     this.cameraX = clamp(this.player.x - 120, 0, WORLD_WIDTH - VIEW_WIDTH);
     this.cinemaBars.classList.remove("is-visible");
     this.state = "playing";
+    this.syncUltimateUi();
     this.announce(`猫の命、残り ${lives}`);
   }
 
   private updateProjectiles(delta: number): void {
     for (const projectile of this.projectiles) {
       projectile.life -= delta;
-      projectile.angle += delta * (projectile.kind === "charm" ? 12 : 5);
+      projectile.angle += delta * (projectile.kind === "charm" ? 12 : projectile.kind === "gadget" ? 10 : 5);
 
       if (projectile.kind === "charm" && projectile.life < 0.66) {
         projectile.returning = true;
@@ -1601,8 +1819,8 @@ export class Game {
       projectile.x += projectile.vx * delta;
       projectile.y += projectile.vy * delta;
 
-      if (projectile.owner === "player") this.resolveFriendlyProjectile(projectile);
-      else this.resolveHostileProjectile(projectile);
+      if (projectile.owner === "enemy") this.resolveHostileProjectile(projectile);
+      else this.resolveFriendlyProjectile(projectile);
     }
     this.projectiles = this.projectiles.filter((projectile) => projectile.life > 0 && projectile.x > -100 && projectile.x < WORLD_WIDTH + 100 && projectile.y < 380);
   }
@@ -1613,8 +1831,16 @@ export class Game {
       if (!rectsOverlap(projectile.x - projectile.w / 2, projectile.y - projectile.h / 2, projectile.w, projectile.h, enemy.x, enemy.y, enemy.w, enemy.h)) continue;
       projectile.hitIds.add(enemy.id);
       const critical = projectile.kind === "moon";
-      this.damageEnemy(enemy, projectile.damage, critical ? 20 : 10, Math.sign(projectile.vx) * 45, critical);
-      if (projectile.kind === "charm") enemy.vx -= Math.sign(projectile.vx) * 70;
+      const source: DamageSource = projectile.owner === "helper" ? "helper" : "player";
+      this.damageEnemy(
+        enemy,
+        projectile.damage,
+        source === "helper" ? 0 : critical ? 20 : 10,
+        Math.sign(projectile.vx) * (source === "helper" ? 2 : 45),
+        critical,
+        source,
+      );
+      if (projectile.kind === "charm" && projectile.owner === "player") enemy.vx -= Math.sign(projectile.vx) * 70;
       if (projectile.kind !== "charm") projectile.life = 0;
     }
   }
@@ -1765,6 +1991,37 @@ export class Game {
     this.skillNameTimer = duration;
   }
 
+  private chargeUltimate(): void {
+    const before = this.player.focus;
+    this.player.focus = Math.min(ULTIMATE_HITS_REQUIRED, this.player.focus + 1);
+    this.syncUltimateUi();
+    if (this.player.focus === before) return;
+
+    if (this.player.focus >= ULTIMATE_HITS_REQUIRED) {
+      this.setSkillName("GMK READY", 1.05);
+      this.addRing(this.player.x + this.player.w / 2, this.player.y + 18, "#ffe69a", 38);
+      this.spawnBurst(this.player.x + this.player.w / 2, this.player.y + 17, "#ffbd45", 20, "spark");
+      this.audio.sfx("select");
+      this.announce("GMK準備完了。必殺技を発動できます");
+    } else {
+      this.announce(`GMK充填 ${this.player.focus}/${ULTIMATE_HITS_REQUIRED}`);
+    }
+  }
+
+  private syncUltimateUi(): void {
+    const ready = this.player.focus >= ULTIMATE_HITS_REQUIRED;
+    this.ultimateButton?.classList.toggle("is-ready", ready);
+    if (this.ultimateTouchCount) {
+      this.ultimateTouchCount.textContent = ready ? "READY" : `${this.player.focus}/${ULTIMATE_HITS_REQUIRED}`;
+    }
+    if (this.ultimateButton) {
+      this.ultimateButton.setAttribute(
+        "aria-label",
+        ready ? "必殺技GMK、発動可能" : `必殺技GMK、充填${this.player.focus}/${ULTIMATE_HITS_REQUIRED}`,
+      );
+    }
+  }
+
   private announce(message: string): void {
     this.ariaLive.textContent = message;
   }
@@ -1809,6 +2066,7 @@ export class Game {
     this.drawAfterimages(context);
     this.drawProjectiles(context);
     this.drawEnemies(context);
+    this.drawHelper(context);
     this.drawPlayer(context);
     this.drawSlashes(context);
     this.drawParticles(context);
@@ -2300,6 +2558,73 @@ export class Game {
     const tint = player.hurtTimer > 0 ? "#d7475e" : "#ffbd45";
     if (imageReady(this.heroSheet)) this.drawHeroSprite(context, x, player.y);
     else this.drawHeroModel(context, x, player.y, player.facing, 1, tint, player.attackStep, false);
+  }
+
+  private helperFrameIndex(): number {
+    const helper = this.helper;
+    if (helper.state === "cheer") return 23;
+    if (helper.state === "throw") return helper.stateTimer > 0.13 ? 13 : 14;
+    if (helper.state === "entrance") return 6 + (Math.floor(this.elapsed * 14) % 6);
+    if (Math.abs(helper.vx) > 36) return 6 + (Math.floor(this.elapsed * 12) % 6);
+    if (Math.abs(helper.vx) > 4) return 2 + (Math.floor(this.elapsed * 8) % 4);
+    return Math.floor(this.elapsed * 2.2) % 2;
+  }
+
+  private drawHelper(context: CanvasRenderingContext2D): void {
+    const helper = this.helper;
+    if (!helper.active) return;
+    const screenX = helper.x - this.cameraX;
+    if (screenX < -90 || screenX > VIEW_WIDTH + 90) return;
+    const baseline = helper.y + this.player.h;
+
+    context.save();
+    context.translate(Math.round(screenX), Math.round(baseline));
+    context.scale(helper.facing, 1);
+    if (imageReady(this.helperSheet)) {
+      const frame = this.helperFrameIndex();
+      const sourceX = (frame % 6) * 256;
+      const sourceY = Math.floor(frame / 6) * 256;
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(this.helperSheet, sourceX, sourceY, 256, 256, -39, -77, 78, 78);
+    } else {
+      context.fillStyle = "#f5c347";
+      context.beginPath();
+      context.arc(0, -48, 8, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = "#17254e";
+      context.fillRect(-9, -40, 18, 28);
+      context.fillStyle = "#e8d5a4";
+      context.fillRect(-7, -12, 5, 12);
+      context.fillRect(2, -12, 5, 12);
+    }
+    context.restore();
+
+    context.save();
+    context.globalCompositeOperation = "screen";
+    context.globalAlpha = 0.2 + Math.sin(this.elapsed * 7) * 0.05;
+    context.strokeStyle = "#74e4df";
+    context.lineWidth = 1;
+    context.beginPath();
+    context.arc(Math.round(screenX), Math.round(baseline - 28), 24, 0, Math.PI * 2);
+    context.stroke();
+    context.restore();
+
+    if (helper.labelTimer > 0 && helper.gadgetLabel) {
+      const alpha = clamp(helper.labelTimer * 3, 0, 1);
+      context.save();
+      context.globalAlpha = alpha;
+      context.textAlign = "center";
+      context.font = "bold 6px monospace";
+      const labelWidth = Math.max(42, context.measureText(helper.gadgetLabel).width + 10);
+      context.fillStyle = "rgba(4, 8, 14, 0.86)";
+      context.fillRect(Math.round(screenX - labelWidth / 2), Math.round(baseline - 78), Math.round(labelWidth), 11);
+      context.strokeStyle = "rgba(116, 228, 223, 0.72)";
+      context.strokeRect(Math.round(screenX - labelWidth / 2) + 0.5, Math.round(baseline - 78) + 0.5, Math.round(labelWidth), 11);
+      context.fillStyle = "#c9fffb";
+      context.fillText(helper.gadgetLabel, Math.round(screenX), Math.round(baseline - 70));
+      context.restore();
+    }
   }
 
   private heroFrameIndex(): number {
@@ -2822,7 +3147,64 @@ export class Game {
       context.save();
       context.translate(Math.round(x), Math.round(y));
       context.rotate(projectile.angle);
-      if (projectile.kind === "charm") {
+      if (projectile.kind === "gadget") {
+        const frame = clamp(projectile.gadgetFrame ?? 0, 0, 23);
+        const group = Math.floor(frame / 6);
+        const trailColor = group < 2 ? "#ffbd45" : "#74e4df";
+        context.save();
+        context.globalCompositeOperation = "screen";
+        context.globalAlpha = 0.38;
+        context.strokeStyle = trailColor;
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(-20, 0);
+        context.lineTo(-7, 0);
+        context.stroke();
+        context.globalAlpha = 0.15;
+        context.lineWidth = 6;
+        context.stroke();
+        context.restore();
+
+        if (imageReady(this.gadgetSheet)) {
+          context.imageSmoothingEnabled = true;
+          context.imageSmoothingQuality = "high";
+          context.drawImage(
+            this.gadgetSheet,
+            (frame % 6) * 256,
+            group * 256,
+            256,
+            256,
+            -15,
+            -15,
+            30,
+            30,
+          );
+        } else if (group === 0) {
+          context.fillStyle = "#14151b";
+          context.fillRect(-10, -5, 20, 10);
+          context.fillStyle = "#c7c9cc";
+          context.fillRect(-7, -3, 11, 1);
+        } else if (group === 1) {
+          context.fillStyle = "#f3ead7";
+          context.fillRect(-10, -6, 20, 12);
+          context.fillStyle = "#a72430";
+          context.fillRect(-8, -4, 5, 8);
+        } else if (group === 2) {
+          context.strokeStyle = "#252a30";
+          context.lineWidth = 2;
+          context.strokeRect(-10, -4, 8, 7);
+          context.strokeRect(2, -4, 8, 7);
+          context.beginPath();
+          context.moveTo(-2, -1);
+          context.lineTo(2, -1);
+          context.stroke();
+        } else {
+          context.fillStyle = "#d8dadd";
+          context.fillRect(-9, -9, 18, 18);
+          context.fillStyle = "#888d92";
+          context.fillRect(-7, 6, 14, 1);
+        }
+      } else if (projectile.kind === "charm") {
         context.fillStyle = "rgba(255, 189, 69, 0.2)";
         context.beginPath();
         context.arc(0, 0, 10, 0, Math.PI * 2);
@@ -3040,28 +3422,38 @@ export class Game {
     context.fillText(`HP ${player.hp}/${player.maxHp}`, 46, 35);
     context.fillText(`九命 ${player.lives}`, 104, 35);
 
-    // Focus talismans.
-    context.fillStyle = "rgba(6, 4, 9, 0.68)";
-    context.fillRect(9, 46, 95, 17);
-    context.font = "6px monospace";
-    context.fillStyle = "#b5a48f";
-    context.fillText("GOLDEN SIGIL", 14, 56);
-    for (let index = 0; index < 3; index += 1) {
+    // GMK charge: one segment per confirmed player hit.
+    const gmkReady = player.focus >= ULTIMATE_HITS_REQUIRED;
+    const gmkPulse = gmkReady ? 0.62 + Math.sin(this.elapsed * 10) * 0.26 : 0;
+    context.fillStyle = "rgba(6, 4, 9, 0.78)";
+    context.fillRect(9, 46, 131, 19);
+    context.strokeStyle = gmkReady ? `rgba(255, 230, 154, ${gmkPulse})` : "rgba(255, 198, 94, 0.26)";
+    context.strokeRect(9.5, 46.5, 131, 19);
+    context.font = "bold 7px monospace";
+    context.fillStyle = gmkReady ? "#ffe69a" : "#d5c2aa";
+    context.fillText(gmkReady ? "GMK READY" : `GMK ${player.focus}/${ULTIMATE_HITS_REQUIRED}`, 14, 58);
+    for (let index = 0; index < ULTIMATE_HITS_REQUIRED; index += 1) {
       const lit = index < player.focus;
-      const cx = 72 + index * 11;
-      context.fillStyle = lit ? "rgba(255, 189, 69, 0.28)" : "rgba(255,255,255,0.04)";
-      context.beginPath();
-      context.arc(cx, 54, 5, 0, Math.PI * 2);
-      context.fill();
-      context.strokeStyle = lit ? "#ffe69a" : "#554651";
-      context.beginPath();
-      context.arc(cx, 54, 3, 0, Math.PI * 2);
-      context.stroke();
+      const segmentX = 69 + index * 13;
+      context.fillStyle = lit ? (gmkReady ? "#ffe69a" : "#ffbd45") : "rgba(255,255,255,0.07)";
+      context.fillRect(segmentX, 51, 10, 7);
+      context.strokeStyle = lit ? "rgba(255, 240, 180, 0.9)" : "#554651";
+      context.strokeRect(segmentX + 0.5, 51.5, 10, 7);
       if (lit) {
-        context.fillStyle = "#ffbd45";
-        context.fillRect(cx, 51, 1, 6);
-        context.fillRect(cx - 3, 54, 6, 1);
+        context.fillStyle = "rgba(255,255,255,0.46)";
+        context.fillRect(segmentX + 1, 52, 8, 1);
       }
+    }
+
+    if (this.helper.active) {
+      context.fillStyle = "rgba(4, 9, 15, 0.74)";
+      context.fillRect(9, 68, 158, 14);
+      context.strokeStyle = "rgba(116, 228, 223, 0.45)";
+      context.strokeRect(9.5, 68.5, 158, 14);
+      context.fillStyle = "#74e4df";
+      context.fillRect(14, 73, 4, 4);
+      context.font = "6px monospace";
+      context.fillText("SUPPORT / 某ガジェオタG　GADGET RAIN", 22, 78);
     }
 
     // Objective and current blessing.

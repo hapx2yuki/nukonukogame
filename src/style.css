@@ -37,6 +37,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+#app,
+.screen,
+.game-frame {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+#game-canvas,
+.touch-controls,
+.touch-controls button {
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+
 button {
   color: inherit;
   font: inherit;
@@ -326,6 +340,18 @@ h1 em {
     radial-gradient(ellipse at 50% 50%, #231624 0%, #0c0811 56%, #050409 100%);
 }
 
+#game-screen:fullscreen,
+#game-screen:-webkit-full-screen {
+  width: 100vw;
+  height: 100dvh;
+  padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+}
+
+#game-screen:fullscreen .game-frame,
+#game-screen:-webkit-full-screen .game-frame {
+  width: min(100%, calc((100dvh - 104px) * 16 / 9), 1600px);
+}
+
 #game-screen::before {
   position: absolute;
   inset: 0;
@@ -533,6 +559,8 @@ kbd {
   inset: 0;
   display: grid;
   place-items: center;
+  overflow: auto;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
   background: rgba(5, 4, 9, 0.82);
   backdrop-filter: blur(6px);
 }
@@ -796,7 +824,15 @@ kbd {
   z-index: 6;
   align-items: flex-end;
   justify-content: space-between;
-  padding: 0 3% 3%;
+  padding: 0 max(3%, env(safe-area-inset-right)) max(3%, env(safe-area-inset-bottom)) max(3%, env(safe-area-inset-left));
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.story-overlay.is-visible ~ .touch-controls,
+.full-overlay.is-visible ~ .touch-controls {
+  visibility: hidden;
+  opacity: 0;
   pointer-events: none;
 }
 
@@ -810,8 +846,10 @@ kbd {
 
 .touch-controls button {
   display: grid;
-  width: clamp(44px, 8vw, 65px);
-  height: clamp(44px, 8vw, 65px);
+  width: clamp(52px, 8vw, 66px);
+  height: clamp(52px, 8vw, 66px);
+  min-width: 48px;
+  min-height: 48px;
   place-items: center;
   border: 1px solid rgba(255, 214, 123, 0.42);
   border-radius: 50%;
@@ -832,11 +870,47 @@ kbd {
   color: #fff;
 }
 
-.touch-right { position: relative; padding-left: 42px; }
-.touch-controls .touch-small { width: 36px; height: 36px; font-size: 12px; }
-.touch-controls .charm { position: absolute; bottom: 53px; left: 2px; }
-.touch-controls .ultimate { position: absolute; bottom: 5px; left: 0; border-color: rgba(215, 71, 94, 0.6); color: #ffb4bd; }
+.touch-left .down {
+  margin-bottom: 9px;
+  color: var(--teal);
+}
+
+.touch-right { position: relative; padding-left: 54px; }
+.touch-controls .touch-small { width: 48px; height: 48px; font-size: 12px; }
+.touch-controls .charm { position: absolute; bottom: 58px; left: 2px; }
+.touch-controls .ultimate {
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  grid-template-rows: 1fr auto;
+  gap: 0;
+  padding: 6px 3px 4px;
+  border-color: rgba(215, 71, 94, 0.6);
+  color: #ffb4bd;
+  line-height: 1;
+}
+.touch-controls .ultimate span { font-size: 15px; }
+.touch-controls .ultimate small {
+  color: rgba(255, 228, 183, 0.72);
+  font-family: var(--sans);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.touch-controls .ultimate.is-ready {
+  border-color: var(--gold-hot);
+  background: radial-gradient(circle, rgba(215, 71, 94, 0.86), rgba(72, 16, 38, 0.76));
+  box-shadow: inset 0 0 18px rgba(255, 230, 154, 0.3), 0 0 18px rgba(255, 189, 69, 0.72);
+  color: #fff8db;
+  animation: ultimate-ready 850ms ease-in-out infinite alternate;
+}
+.touch-controls .ultimate.is-ready small { color: var(--gold-hot); }
 .touch-controls .attack { border-color: rgba(255, 189, 69, 0.68); background: rgba(98, 44, 23, 0.52); }
+
+@keyframes ultimate-ready {
+  from { transform: scale(1); filter: brightness(1); }
+  to { transform: scale(1.08); filter: brightness(1.24); }
+}
 
 /* Help dialog */
 
@@ -940,6 +1014,12 @@ kbd {
   #game-screen { grid-template-rows: auto minmax(0, 1fr); }
   .game-frame { width: min(100%, calc((100dvh - 56px) * 16 / 9)); }
   .game-topbar { min-height: 25px; }
+  .icon-button,
+  .dialog-close,
+  .setting-row button {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 @media (max-width: 760px) {
@@ -953,8 +1033,9 @@ kbd {
   .title-kicker { font-size: 17px; }
   h1 strong { font-size: clamp(48px, 15vw, 76px); }
   .title-copy { margin: 17px 0; }
+  .title-actions { flex-wrap: wrap; gap: 10px 16px; }
   .title-corner { display: none; }
-  .title-meta { font-size: 8px; }
+  .title-meta { flex-wrap: wrap; gap: 8px 16px; font-size: 8px; }
   .upgrade-grid { grid-template-columns: 1fr; max-height: 56vh; overflow: auto; }
   .upgrade-card { min-height: 92px; padding: 11px 10px 11px 82px; text-align: left; }
   .upgrade-icon { position: absolute; top: 18px; left: 15px; }
@@ -972,15 +1053,68 @@ kbd {
 }
 
 @media (max-height: 520px) {
-  .game-topbar { position: absolute; top: 7px; right: 5px; z-index: 30; width: 54px; }
+  .game-topbar {
+    position: absolute;
+    top: max(4px, env(safe-area-inset-top));
+    right: max(4px, env(safe-area-inset-right));
+    z-index: 30;
+    width: 54px;
+  }
   .chapter-label { display: none; }
-  .game-frame { width: min(100%, calc(100dvh * 16 / 9)); }
-  #game-screen { padding: 0; }
+  .game-frame { width: min(100%, calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 16 / 9)); }
+  #game-screen {
+    padding: max(2px, env(safe-area-inset-top)) max(2px, env(safe-area-inset-right)) max(2px, env(safe-area-inset-bottom)) max(2px, env(safe-area-inset-left));
+  }
   .topbar-actions { width: 100%; flex-direction: column; gap: 5px; }
-  .icon-button { width: 100%; padding: 4px 2px; border: 1px solid rgba(255, 198, 94, 0.25); background: rgba(5, 4, 9, 0.62); font-size: 7px; }
-  .overlay-panel { padding: 15px; }
-  .upgrade-grid { margin-top: 12px; }
-  .upgrade-card { min-height: 126px; }
+  .icon-button {
+    width: 100%;
+    min-height: 44px;
+    padding: 4px 2px;
+    border: 1px solid rgba(255, 198, 94, 0.25);
+    background: rgba(5, 4, 9, 0.68);
+    font-size: 7px;
+  }
+  .overlay-panel,
+  .results-panel {
+    max-height: calc(100dvh - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom)));
+    overflow: auto;
+    padding: 12px 15px;
+  }
+  .overlay-panel h2,
+  .results-panel h2 { font-size: clamp(18px, 5vw, 26px); }
+  .upgrade-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    max-height: none;
+    margin-top: 10px;
+    overflow: visible;
+  }
+  .upgrade-card {
+    min-height: 112px;
+    padding: 9px 6px 20px;
+    text-align: center;
+  }
+  .upgrade-icon {
+    position: static;
+    width: 36px;
+    height: 36px;
+    margin: 0 auto 4px;
+    font-size: 17px;
+  }
+  .upgrade-card strong { margin: 3px 0; font-size: 13px; }
+  .upgrade-card em { font-size: 7px; line-height: 1.35; }
+  .upgrade-card kbd { display: none; }
+  .story-overlay { right: 4%; bottom: max(5%, env(safe-area-inset-bottom)); left: 4%; }
+  .story-copy { padding: 7px 12px 9px; }
+  .speaker-mark { width: 54px; flex-basis: 54px; font-size: 28px; }
+  .touch-controls { padding-bottom: max(2%, env(safe-area-inset-bottom)); }
+  .howto-dialog {
+    max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
+    overflow: auto;
+  }
+  .howto-dialog form { padding: 18px 24px; }
+  .howto-list { grid-template-columns: repeat(3, 1fr); max-height: none; margin: 12px 0; overflow: visible; }
+  .howto-list > div { min-height: 114px; padding: 21px 11px 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

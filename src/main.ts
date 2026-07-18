@@ -16,6 +16,7 @@ const soundButton = byId<HTMLButtonElement>("sound-button");
 const pauseSoundButton = byId<HTMLButtonElement>("pause-sound");
 const shakeButton = byId<HTMLButtonElement>("shake-toggle");
 const flashButton = byId<HTMLButtonElement>("flash-toggle");
+const fullscreenButton = byId<HTMLButtonElement>("fullscreen-button");
 const audio = new AudioEngine();
 
 let soundEnabled = localStorage.getItem("bishoujo-n-sound") !== "off";
@@ -103,15 +104,36 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "Digit3") game.selectUpgrade("moon");
 });
 
-byId<HTMLButtonElement>("fullscreen-button").addEventListener("click", async () => {
-  const frame = byId<HTMLElement>("game-frame");
+function syncFullscreenButton(): void {
+  const isFullscreen = document.fullscreenElement === gameScreen;
+  fullscreenButton.textContent = isFullscreen ? "全画面解除" : "全画面";
+  fullscreenButton.setAttribute("aria-pressed", String(isFullscreen));
+  fullscreenButton.setAttribute("aria-label", isFullscreen ? "全画面表示を解除" : "全画面で表示");
+}
+
+async function lockLandscapeOrientation(): Promise<void> {
+  const orientation = screen.orientation as
+    | (ScreenOrientation & { lock?: (orientation: string) => Promise<void> })
+    | undefined;
+  try {
+    await orientation?.lock?.("landscape");
+  } catch {
+    // Orientation locking is optional and unsupported on some desktop/mobile browsers.
+  }
+}
+
+fullscreenButton.addEventListener("click", async () => {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
-    else await frame.requestFullscreen();
+    else {
+      await gameScreen.requestFullscreen();
+      await lockLandscapeOrientation();
+    }
   } catch {
     byId<HTMLElement>("aria-live").textContent = "この端末では全画面表示を利用できません";
   }
 });
+document.addEventListener("fullscreenchange", syncFullscreenButton);
 
 document.addEventListener("pointerdown", () => void audio.start(), { once: true });
 document.addEventListener("visibilitychange", () => {
@@ -130,3 +152,4 @@ titleScreen.addEventListener("pointerleave", () => {
 });
 
 syncSettings();
+syncFullscreenButton();

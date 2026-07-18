@@ -25,14 +25,18 @@ export class Input {
   private pressed = new Set<Action>();
   private gamepadHeld = new Set<Action>();
   private touchElements: HTMLElement[] = [];
+  private activeTouchPointers = new Map<number, { action: Action; element: HTMLElement }>();
+  private touchCleanup: Array<() => void> = [];
   private onKeyDownBound = (event: KeyboardEvent) => this.onKeyDown(event);
   private onKeyUpBound = (event: KeyboardEvent) => this.onKeyUp(event);
   private onBlurBound = () => this.reset();
+  private onPageHideBound = () => this.reset();
 
   constructor() {
     window.addEventListener("keydown", this.onKeyDownBound, { passive: false });
     window.addEventListener("keyup", this.onKeyUpBound, { passive: false });
     window.addEventListener("blur", this.onBlurBound);
+    window.addEventListener("pagehide", this.onPageHideBound);
     this.bindTouchControls();
   }
 
@@ -88,6 +92,7 @@ export class Input {
     this.held.clear();
     this.pressed.clear();
     this.gamepadHeld.clear();
+    this.activeTouchPointers.clear();
     this.touchElements.forEach((element) => element.classList.remove("is-pressed"));
   }
 
@@ -95,6 +100,10 @@ export class Input {
     window.removeEventListener("keydown", this.onKeyDownBound);
     window.removeEventListener("keyup", this.onKeyUpBound);
     window.removeEventListener("blur", this.onBlurBound);
+    window.removeEventListener("pagehide", this.onPageHideBound);
+    this.touchCleanup.forEach((cleanup) => cleanup());
+    this.touchCleanup = [];
+    this.reset();
   }
 
   private onKeyDown(event: KeyboardEvent): void {
@@ -119,23 +128,48 @@ export class Input {
 
       const begin = (event: PointerEvent) => {
         event.preventDefault();
-        element.setPointerCapture?.(event.pointerId);
+        if (this.activeTouchPointers.has(event.pointerId)) return;
+        try {
+          element.setPointerCapture?.(event.pointerId);
+        } catch {
+          // Some mobile browsers can reject capture while the page is changing state.
+        }
+        this.activeTouchPointers.set(event.pointerId, { action, element });
         element.classList.add("is-pressed");
         this.press(action);
       };
       const end = (event: PointerEvent) => {
-        event.preventDefault();
-        element.classList.remove("is-pressed");
-        this.release(action);
+        if (event.cancelable) event.preventDefault();
+        const active = this.activeTouchPointers.get(event.pointerId);
+        if (!active || active.element !== element) return;
+        this.activeTouchPointers.delete(event.pointerId);
+
+        const elementStillPressed = [...this.activeTouchPointers.values()].some((pointer) => pointer.element === element);
+        if (!elementStillPressed) element.classList.remove("is-pressed");
+
+        const actionStillPressed = [...this.activeTouchPointers.values()].some((pointer) => pointer.action === action);
+        if (!actionStillPressed) this.release(action);
       };
+      const leave = (event: PointerEvent) => {
+        if (event.buttons === 0) end(event);
+      };
+      const preventContextMenu = (event: Event) => event.preventDefault();
 
       element.addEventListener("pointerdown", begin);
       element.addEventListener("pointerup", end);
       element.addEventListener("pointercancel", end);
-      element.addEventListener("pointerleave", (event) => {
-        if (event.buttons === 0) end(event);
+      element.addEventListener("lostpointercapture", end);
+      element.addEventListener("pointerleave", leave);
+      element.addEventListener("contextmenu", preventContextMenu);
+
+      this.touchCleanup.push(() => {
+        element.removeEventListener("pointerdown", begin);
+        element.removeEventListener("pointerup", end);
+        element.removeEventListener("pointercancel", end);
+        element.removeEventListener("lostpointercapture", end);
+        element.removeEventListener("pointerleave", leave);
+        element.removeEventListener("contextmenu", preventContextMenu);
       });
-      element.addEventListener("contextmenu", (event) => event.preventDefault());
     });
   }
 }
