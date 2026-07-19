@@ -4,6 +4,8 @@ import { Input } from "./Input";
 const VIEW_WIDTH = 480;
 const VIEW_HEIGHT = 270;
 const WORLD_WIDTH = 5480;
+const GROUND_Y = 224;
+const GROUND_DEPTH = 60;
 const GRAVITY = 690;
 const PLAYER_SPEED = 114;
 const ULTIMATE_DURATION = 2.15;
@@ -26,6 +28,13 @@ interface Platform {
   w: number;
   h: number;
   material: "wood" | "stone" | "metal";
+  role: "ground" | "floating";
+}
+
+interface GroundSection {
+  x: number;
+  w: number;
+  material: Platform["material"];
 }
 
 interface Prop {
@@ -389,6 +398,7 @@ export class Game {
   private hitsTaken = 0;
   private nextEntityId = 1;
   private platforms: Platform[] = [];
+  private groundSections: GroundSection[] = [];
   private props: Prop[] = [];
   private enemies: Enemy[] = [];
   private projectiles: Projectile[] = [];
@@ -570,8 +580,8 @@ export class Game {
   private createPlayer(): Player {
     return {
       x: 70,
-      y: 180,
-      previousY: 180,
+      y: GROUND_Y - 38,
+      previousY: GROUND_Y - 38,
       vx: 0,
       vy: 0,
       w: 18,
@@ -671,61 +681,80 @@ export class Game {
   }
 
   private buildWorld(): void {
-    this.platforms = [
-      { x: 0, y: 224, w: 862, h: 60, material: "wood" },
-      { x: 862, y: 218, w: 590, h: 66, material: "stone" },
-      { x: 1452, y: 226, w: 622, h: 58, material: "wood" },
-      { x: 2074, y: 214, w: 696, h: 70, material: "stone" },
-      { x: 2770, y: 224, w: 742, h: 60, material: "wood" },
-      { x: 3512, y: 216, w: 798, h: 68, material: "metal" },
-      { x: 4310, y: 226, w: 1170, h: 58, material: "stone" },
-      { x: 505, y: 176, w: 176, h: 9, material: "wood" },
-      { x: 1070, y: 164, w: 212, h: 9, material: "stone" },
-      { x: 1565, y: 176, w: 145, h: 8, material: "wood" },
-      { x: 2440, y: 164, w: 176, h: 8, material: "stone" },
-      { x: 2960, y: 173, w: 192, h: 8, material: "wood" },
-      { x: 3290, y: 142, w: 138, h: 8, material: "metal" },
-      { x: 3730, y: 169, w: 202, h: 9, material: "metal" },
+    this.groundSections = [
+      { x: 0, w: 862, material: "wood" },
+      { x: 862, w: 590, material: "stone" },
+      { x: 1452, w: 622, material: "wood" },
+      { x: 2074, w: 696, material: "stone" },
+      { x: 2770, w: 742, material: "wood" },
+      { x: 3512, w: 798, material: "metal" },
+      { x: 4310, w: 1170, material: "stone" },
     ];
+    this.platforms = [
+      { x: 0, y: GROUND_Y, w: WORLD_WIDTH, h: GROUND_DEPTH, material: "stone", role: "ground" },
+      { x: 505, y: 176, w: 176, h: 9, material: "wood", role: "floating" },
+      { x: 1070, y: 164, w: 212, h: 9, material: "stone", role: "floating" },
+      { x: 1565, y: 176, w: 145, h: 8, material: "wood", role: "floating" },
+      { x: 2440, y: 164, w: 176, h: 8, material: "stone", role: "floating" },
+      { x: 2960, y: 173, w: 192, h: 8, material: "wood", role: "floating" },
+      { x: 3290, y: 142, w: 138, h: 8, material: "metal", role: "floating" },
+      { x: 3730, y: 169, w: 202, h: 9, material: "metal", role: "floating" },
+    ];
+    this.assertContinuousGround();
     this.props = this.createProps();
     this.enemies = this.createEnemies();
   }
 
+  private assertContinuousGround(): void {
+    const ground = this.platforms.find((platform) => platform.role === "ground");
+    if (!ground || ground.x > 0 || ground.x + ground.w < WORLD_WIDTH || ground.y !== GROUND_Y) {
+      throw new Error("Main ground collider must cover the complete world");
+    }
+
+    let coveredUntil = 0;
+    for (const section of [...this.groundSections].sort((a, b) => a.x - b.x)) {
+      if (section.x > coveredUntil) throw new Error(`Ground visual gap detected at x=${coveredUntil}`);
+      coveredUntil = Math.max(coveredUntil, section.x + section.w);
+    }
+    if (coveredUntil < WORLD_WIDTH) throw new Error(`Ground visual gap detected at x=${coveredUntil}`);
+  }
+
   private createProps(): Prop[] {
-    const points: Array<[number, number, Prop["kind"]]> = [
-      [340, 224, "lantern"], [752, 224, "sign"], [970, 218, "urn"], [1360, 218, "lantern"],
-      [1810, 226, "lantern"], [2330, 214, "sign"], [2710, 214, "urn"], [3070, 224, "lantern"],
-      [3440, 224, "sign"], [3830, 216, "lantern"], [4160, 216, "urn"], [4510, 226, "lantern"],
-      [4970, 226, "lantern"],
+    const points: Array<[number, Prop["kind"]]> = [
+      [340, "lantern"], [752, "sign"], [970, "urn"], [1360, "lantern"],
+      [1810, "lantern"], [2330, "sign"], [2710, "urn"], [3070, "lantern"],
+      [3440, "sign"], [3830, "lantern"], [4160, "urn"], [4510, "lantern"],
+      [4970, "lantern"],
     ];
-    return points.map(([x, y, kind]) => ({ x, y, kind, hp: kind === "urn" ? 1 : 2, broken: false, hitFlash: 0 }));
+    return points.map(([x, kind]) => ({ x, y: GROUND_Y, kind, hp: kind === "urn" ? 1 : 2, broken: false, hitFlash: 0 }));
   }
 
   private createEnemies(): Enemy[] {
     const enemies: Enemy[] = [];
-    const add = (kind: EnemyKind, x: number, y: number) => {
+    const add = (kind: EnemyKind, x: number, y: number | "ground") => {
       const boss = kind === "boss";
       const size = kind === "hound" ? [27, 19] : kind === "bird" ? [25, 20] : boss ? [24, 45] : [20, 35];
       const hp = boss ? 640 : kind === "lantern" ? 72 : kind === "hound" ? 58 : 50;
+      const resolvedY = y === "ground" ? GROUND_Y - size[1] : y;
       enemies.push({
-        id: this.nextEntityId++, kind, x, y, baseY: y, vx: 0, vy: 0, w: size[0], h: size[1], facing: -1,
+        id: this.nextEntityId++, kind, x, y: resolvedY, baseY: resolvedY, vx: 0, vy: 0, w: size[0], h: size[1], facing: -1,
         hp, maxHp: hp, poise: 0, maxPoise: boss ? 130 : 48, state: "idle", stateTimer: 0,
         actionCooldown: seeded(x) * 0.8, invulnerable: 0, hitFlash: 0, attackKind: "slash", hitPlayer: false,
         phase: 1, active: !boss, deathTimer: 0,
       });
     };
-    add("lantern", 630, 189);
-    add("hound", 920, 199);
+    add("lantern", 630, "ground");
+    add("hound", 920, "ground");
     add("bird", 1250, 132);
-    add("lantern", 1580, 191);
-    add("hound", 1880, 207);
+    add("lantern", 1580, "ground");
+    add("hound", 1880, "ground");
     add("bird", 2460, 126);
-    add("lantern", 2890, 189);
-    add("hound", 3160, 205);
+    add("lantern", 2890, "ground");
+    add("hound", 3160, "ground");
     add("bird", 3370, 106);
-    add("lantern", 3710, 181);
-    add("hound", 4050, 197);
-    add("boss", 4750, 181);
+    add("lantern", 3710, "ground");
+    add("hound", 4050, "ground");
+    add("boss", 4750, "ground");
     return enemies;
   }
 
@@ -805,6 +834,7 @@ export class Game {
   private updatePlayer(delta: number): void {
     const player = this.player;
     player.previousY = player.y;
+    if (player.y + player.h > GROUND_Y + 14) this.recoverPlayerToGround();
     player.invulnerable = Math.max(0, player.invulnerable - delta);
     player.attackTimer = Math.max(0, player.attackTimer - delta);
     player.attackBuffer = Math.max(0, player.attackBuffer - delta);
@@ -869,7 +899,6 @@ export class Game {
     if (this.bossTriggered && !this.bossDefeated) player.x = clamp(player.x, 4240, 5230);
 
     this.resolvePlayerPlatforms();
-    if (player.y > VIEW_HEIGHT + 100) this.damagePlayer(100, player.x - 20);
 
     const distance = Math.abs(player.x - oldX);
     player.runDistance += distance;
@@ -891,7 +920,7 @@ export class Game {
 
     if (player.vy >= 0) {
       for (const platform of this.platforms) {
-        const overlapsX = player.x + player.w > platform.x + 2 && player.x < platform.x + platform.w - 2;
+        const overlapsX = player.x + player.w > platform.x && player.x < platform.x + platform.w;
         if (overlapsX && previousBottom <= platform.y + 3 && currentBottom >= platform.y) {
           if (!landing || platform.y < landing.y) landing = platform;
         }
@@ -917,9 +946,24 @@ export class Game {
     }
   }
 
+  private recoverPlayerToGround(): void {
+    const player = this.player;
+    player.y = GROUND_Y - player.h;
+    player.previousY = player.y;
+    player.vy = 0;
+    player.dashTimer = 0;
+    player.grounded = true;
+    player.jumps = 0;
+    player.coyote = 0.105;
+    player.invulnerable = Math.max(player.invulnerable, 0.35);
+    this.announce("足場へ安全復帰");
+  }
+
   private platformMaterialBelow(x: number): Platform["material"] {
     const platform = this.platforms.find((item) => x >= item.x && x <= item.x + item.w && Math.abs(item.y - (this.player.y + this.player.h)) < 5);
-    return platform?.material ?? "wood";
+    if (!platform) return "wood";
+    if (platform.role === "floating") return platform.material;
+    return this.groundSections.find((section) => x >= section.x && x <= section.x + section.w)?.material ?? "stone";
   }
 
   private startAttack(): void {
@@ -1777,10 +1821,14 @@ export class Game {
   private respawn(): void {
     const lives = Math.max(1, this.player.lives - 1);
     const upgrade = this.upgrade;
+    const respawnX = this.bossTriggered ? 4240 : this.checkpointX;
     this.player = this.createPlayer();
     this.player.lives = lives;
-    this.player.x = this.checkpointX;
-    this.player.y = 160;
+    this.player.x = respawnX;
+    this.player.y = GROUND_Y - this.player.h;
+    this.player.previousY = this.player.y;
+    this.player.grounded = true;
+    this.player.invulnerable = 1.2;
     this.upgrade = upgrade;
     this.helper = this.createHelper();
     if (this.helperTriggered) {
@@ -1802,6 +1850,7 @@ export class Game {
     this.cameraX = clamp(this.player.x - 120, 0, WORLD_WIDTH - VIEW_WIDTH);
     this.cinemaBars.classList.remove("is-visible");
     this.state = "playing";
+    this.input.reset();
     this.syncUltimateUi();
     this.announce(`猫の命、残り ${lives}`);
   }
@@ -1859,9 +1908,9 @@ export class Game {
       projectile.life = 0;
       this.damagePlayer(projectile.damage, projectile.x);
     }
-    if (projectile.y + projectile.h / 2 >= 226 && projectile.kind === "seal") {
+    if (projectile.y + projectile.h / 2 >= GROUND_Y && projectile.kind === "seal") {
       projectile.life = 0;
-      this.spawnBurst(projectile.x, 224, "#d7475e", 12, "paper");
+      this.spawnBurst(projectile.x, GROUND_Y, "#d7475e", 12, "paper");
       this.shake = Math.max(this.shake, 1.4 * this.shakeScale);
     }
   }
@@ -2210,7 +2259,7 @@ export class Game {
 
     context.globalAlpha = 0.18 + dawn * 0.1;
     context.fillStyle = dawn > 0.4 ? "#d99b72" : "#281d35";
-    context.fillRect(0, 218, VIEW_WIDTH, 52);
+    context.fillRect(0, GROUND_Y, VIEW_WIDTH, VIEW_HEIGHT - GROUND_Y);
     context.globalAlpha = 1;
   }
 
@@ -2266,7 +2315,19 @@ export class Game {
   }
 
   private drawPlatforms(context: CanvasRenderingContext2D): void {
-    for (const platform of this.platforms) {
+    const groundX = Math.round(-this.cameraX);
+    context.fillStyle = "#17131f";
+    context.fillRect(groundX, GROUND_Y, WORLD_WIDTH, GROUND_DEPTH);
+
+    const renderPlatforms: Platform[] = this.groundSections.map((section) => ({
+      ...section,
+      y: GROUND_Y,
+      h: GROUND_DEPTH,
+      role: "ground",
+    }));
+    renderPlatforms.push(...this.platforms.filter((platform) => platform.role === "floating"));
+
+    for (const platform of renderPlatforms) {
       const x = Math.round(platform.x - this.cameraX);
       if (x + platform.w < -20 || x > VIEW_WIDTH + 20) continue;
       const y = Math.round(platform.y);
@@ -2308,11 +2369,24 @@ export class Game {
         context.beginPath();
         context.rect(x, y - 38, platform.w, Math.min(platform.h + 46, 104));
         context.clip();
-        for (let tileX = x + stride * 0.5; tileX < x + platform.w + stride * 0.5; tileX += stride) {
+        for (let tileX = x - stride * 0.5; tileX < x + platform.w + stride; tileX += stride) {
           drawAtlasFrame(context, this.propsSheet, frame, tileX, y, 1, scale, 0.92);
         }
         context.restore();
       }
+    }
+
+    context.fillStyle = "rgba(255, 205, 111, 0.34)";
+    context.fillRect(groundX, GROUND_Y, WORLD_WIDTH, 1);
+    for (const section of this.groundSections.slice(1)) {
+      const jointX = Math.round(section.x - this.cameraX);
+      if (jointX < -6 || jointX > VIEW_WIDTH + 6) continue;
+      context.fillStyle = "#18131e";
+      context.fillRect(jointX - 2, GROUND_Y + 2, 4, 24);
+      context.fillStyle = "#6d5160";
+      context.fillRect(jointX - 1, GROUND_Y + 3, 2, 20);
+      context.fillStyle = "rgba(255, 205, 111, 0.48)";
+      context.fillRect(jointX - 2, GROUND_Y, 4, 2);
     }
   }
 
@@ -2322,7 +2396,7 @@ export class Game {
       if (bossArenaStart < VIEW_WIDTH + 120 && bossArenaStart > -1120) {
         for (let index = 0; index < 7; index += 1) {
           const x = bossArenaStart + 70 + index * 154;
-          drawAtlasFrame(context, this.propsSheet, PROP_FRAMES.pillar, x, 226, 1, 0.39, 0.72);
+          drawAtlasFrame(context, this.propsSheet, PROP_FRAMES.pillar, x, GROUND_Y, 1, 0.39, 0.72);
         }
       }
 
@@ -2336,13 +2410,13 @@ export class Game {
         context.fillStyle = glow;
         context.fillRect(shrineX - 80, 92, 160, 130);
         context.restore();
-        drawAtlasFrame(context, this.propsSheet, PROP_FRAMES.shrine, shrineX, 214, 1, 0.45, 0.98);
+        drawAtlasFrame(context, this.propsSheet, PROP_FRAMES.shrine, shrineX, GROUND_Y, 1, 0.45, 0.98);
       }
 
       const gateX = 4263 - this.cameraX;
       if (gateX > -150 && gateX < VIEW_WIDTH + 150) {
         const gateFrame = this.bossDefeated ? PROP_FRAMES.brokenGate : PROP_FRAMES.gate;
-        drawAtlasFrame(context, this.propsSheet, gateFrame, gateX, 216, 1, 0.43, 0.98);
+        drawAtlasFrame(context, this.propsSheet, gateFrame, gateX, GROUND_Y, 1, 0.43, 0.98);
         const closed = this.bossTriggered && !this.bossDefeated;
         if (closed) {
           context.save();
@@ -2353,7 +2427,7 @@ export class Game {
           for (let index = -2; index < 4; index += 1) {
             context.beginPath();
             context.moveTo(gateX - 32 + index * 13, 132);
-            context.lineTo(gateX - 18 + index * 13, 216);
+            context.lineTo(gateX - 18 + index * 13, GROUND_Y);
             context.stroke();
           }
           context.restore();
@@ -2363,7 +2437,7 @@ export class Game {
       if (this.bossDefeated) {
         const rubbleX = 4770 - this.cameraX;
         if (rubbleX > -150 && rubbleX < VIEW_WIDTH + 150) {
-          drawAtlasFrame(context, this.propsSheet, PROP_FRAMES.goldRubble, rubbleX, 226, 1, 0.4, 0.82);
+          drawAtlasFrame(context, this.propsSheet, PROP_FRAMES.goldRubble, rubbleX, GROUND_Y, 1, 0.4, 0.82);
         }
       }
       return;
@@ -2372,7 +2446,7 @@ export class Game {
     const shrineX = 2020 - this.cameraX;
     if (shrineX > -120 && shrineX < VIEW_WIDTH + 120) {
       context.save();
-      context.translate(Math.round(shrineX), 214);
+      context.translate(Math.round(shrineX), GROUND_Y);
       context.fillStyle = "#15101c";
       context.fillRect(-45, -67, 90, 67);
       context.fillStyle = "#40233a";
@@ -2412,7 +2486,7 @@ export class Game {
     const gateX = 4230 - this.cameraX;
     if (gateX > -80 && gateX < VIEW_WIDTH + 80) {
       context.save();
-      context.translate(Math.round(gateX), 216);
+      context.translate(Math.round(gateX), GROUND_Y);
       const closed = this.bossTriggered && !this.bossDefeated;
       context.fillStyle = "#100b15";
       context.fillRect(-8, -88, 9, 88);
