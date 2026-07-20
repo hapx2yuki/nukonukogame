@@ -729,7 +729,7 @@ export class Game {
       w: 18,
       h: 38,
       facing: 1,
-      grounded: false,
+      grounded: true,
       jumps: 0,
       coyote: 0,
       jumpBuffer: 0,
