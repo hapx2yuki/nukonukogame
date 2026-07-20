@@ -1376,7 +1376,7 @@ export class Game {
     this.helper.stateTimer = 0.4;
     this.input.reset();
     this.cinemaBars.classList.remove("is-visible");
-    this.setSkillName("某ガジェオタG × 某美少女N", 0.42);
+    this.setSkillName("某美少女N × 某ガジェオタG", 0.42);
     this.audio.sfx("ultimate");
   }
 
@@ -1464,9 +1464,9 @@ export class Game {
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.combinedRushEnd && (this.supportCinematicEvents & 32) === 0) {
       this.supportCinematicEvents |= 32;
-      this.setSkillName("立つ鳥うんこブリブリ × GMK", 0.86);
+      this.setSkillName("GMK × 立つ鳥うんこブリブリ", 0.86);
       this.audio.sfx("select");
-      this.announce("立つ鳥うんこブリブリとGMKが連動");
+      this.announce("GMKと立つ鳥うんこブリブリが連動");
     }
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.linkedFinalEnd && (this.supportCinematicEvents & 64) === 0) {
@@ -4226,14 +4226,14 @@ export class Game {
       context.font = "900 16px \"Hiragino Mincho ProN\", \"Yu Mincho\", serif";
       context.lineWidth = 5;
       context.strokeStyle = "rgba(2, 3, 7, 0.96)";
-      context.strokeText("某ガジェオタG × 某美少女N", 243, 162);
+      context.strokeText("某美少女N × 某ガジェオタG", 243, 162);
       context.fillStyle = "#fff1cf";
-      context.fillText("某ガジェオタG × 某美少女N", 243, 162);
+      context.fillText("某美少女N × 某ガジェオタG", 243, 162);
       context.font = "bold 7px monospace";
       context.fillStyle = "#74e4df";
       context.fillText("DOUBLE CUT-IN / CO-OP ATTACK", 243, 181);
       context.fillStyle = "#ffcf69";
-      context.fillText("SUPPORT ULTIMATE × GMK", 243, 195);
+      context.fillText("GMK × SUPPORT ULTIMATE", 243, 195);
     } else if (elapsed < SUPPORT_CINEMATIC_BEATS.linkPulseEnd) {
       // Reference beat 2: a very brief live impact connects the first two cards.
       const phase = (elapsed - SUPPORT_CINEMATIC_BEATS.linkedPortraitEnd)
@@ -4613,36 +4613,90 @@ export class Game {
       const reveal = easeOut(phase * 6);
       const exit = easeOut((phase - 0.9) / 0.1);
       const alpha = reveal * (1 - exit);
+      const actionTop = 18;
+      const actionHeight = 234;
+      const drawActionHalf = (
+        image: HTMLImageElement,
+        sourceX: number,
+        sourceWidth: number,
+        side: "left" | "right",
+        offsetX: number,
+      ): void => {
+        if (!imageReady(image)) return;
+        const sourceHeight = image.naturalHeight;
+        const width = actionHeight * (sourceWidth / sourceHeight);
+        const x = side === "left"
+          ? 7 + offsetX
+          : VIEW_WIDTH - width - 7 + offsetX;
+        context.save();
+        context.globalAlpha = alpha;
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.drawImage(
+          image,
+          sourceX,
+          0,
+          sourceWidth,
+          sourceHeight,
+          x,
+          actionTop,
+          width,
+          actionHeight,
+        );
+        context.restore();
+      };
+
       context.fillStyle = "#050207";
       context.fillRect(0, 15, VIEW_WIDTH, 240);
 
+      // Left: the full support attack pose and all four gadgets.
       context.save();
       context.beginPath();
       context.moveTo(-12, 18);
-      context.lineTo(292, 18);
-      context.lineTo(250, 252);
+      context.lineTo(258, 18);
+      context.lineTo(226, 252);
       context.lineTo(-12, 252);
       context.closePath();
       context.clip();
-      drawPlate(this.gmkCutin, alpha, -64 - (1 - reveal) * 118, 1.16);
-      context.restore();
-      context.save();
-      context.beginPath();
-      context.moveTo(244, 18);
-      context.lineTo(492 + exit * 128, 18);
-      context.lineTo(492 + exit * 148, 252);
-      context.lineTo(202, 252);
-      context.closePath();
-      context.clip();
-      drawPlate(this.helperCutin, alpha * 0.78, 94 + (1 - reveal) * 126, 1.12);
+      context.fillStyle = "#031015";
+      context.fillRect(0, 18, 264, 234);
+      drawActionHalf(
+        this.helperCutin,
+        0,
+        this.helperCutin.naturalWidth * 0.625,
+        "left",
+        -(1 - reveal) * 76 - exit * 92,
+      );
       context.restore();
 
-      const ink = context.createLinearGradient(144, 0, VIEW_WIDTH, 0);
-      ink.addColorStop(0, "rgba(4, 2, 7, 0.08)");
-      ink.addColorStop(0.52, "rgba(4, 2, 7, 0.62)");
-      ink.addColorStop(1, "rgba(4, 2, 7, 0.96)");
+      // Right: the complete GMK sword pose, including the blade arc.
+      context.save();
+      context.beginPath();
+      context.moveTo(258, 18);
+      context.lineTo(492 + exit * 128, 18);
+      context.lineTo(492 + exit * 148, 252);
+      context.lineTo(226, 252);
+      context.closePath();
+      context.clip();
+      context.fillStyle = "#12090a";
+      context.fillRect(218, 18, 262, 234);
+      drawActionHalf(
+        this.gmkCutin,
+        this.gmkCutin.naturalWidth * 0.375,
+        this.gmkCutin.naturalWidth * 0.625,
+        "right",
+        (1 - reveal) * 76 + exit * 92,
+      );
+      context.restore();
+
+      const ink = context.createLinearGradient(108, 0, 372, 0);
+      ink.addColorStop(0, "rgba(4, 2, 7, 0)");
+      ink.addColorStop(0.34, "rgba(4, 2, 7, 0.34)");
+      ink.addColorStop(0.5, "rgba(4, 2, 7, 0.82)");
+      ink.addColorStop(0.66, "rgba(4, 2, 7, 0.34)");
+      ink.addColorStop(1, "rgba(4, 2, 7, 0)");
       context.fillStyle = ink;
-      context.fillRect(118, 18, 362, 234);
+      context.fillRect(108, 18, 264, 234);
       context.globalAlpha = alpha;
       context.strokeStyle = "#ffd36d";
       context.lineWidth = 1.5;
@@ -4652,24 +4706,48 @@ export class Game {
       context.moveTo(0, 251);
       context.lineTo(430, 238);
       context.stroke();
+
+      context.strokeStyle = "#74e4df";
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(258, 16);
+      context.lineTo(226, 254);
+      context.stroke();
+      context.strokeStyle = "#ffd36d";
+      context.beginPath();
+      context.moveTo(263, 16);
+      context.lineTo(231, 254);
+      context.stroke();
+
+      context.textAlign = "left";
+      context.font = "bold 5.5px monospace";
+      context.fillStyle = "#74e4df";
+      context.fillText("SUPPORT / 某ガジェオタG", 16, 45);
       context.textAlign = "right";
+      context.font = "bold 7px monospace";
+      context.fillStyle = "#ffcc69";
+      context.fillText("GMK / 某美少女N", 464, 38);
+
+      context.textAlign = "center";
       context.font = "italic 800 10px Georgia, serif";
       context.fillStyle = "#74e4df";
-      context.fillText("CO-OP FINISH", 458, 128);
-      context.font = "900 19px \"Hiragino Mincho ProN\", \"Yu Mincho\", serif";
+      context.fillText("CO-OP FINISH", VIEW_WIDTH / 2, 127);
+      context.font = "800 24px Georgia, serif";
       context.lineWidth = 5;
       context.strokeStyle = "rgba(3, 2, 6, 0.94)";
-      context.strokeText("立つ鳥うんこブリブリ", 458, 158);
-      context.fillStyle = "#fff1cf";
-      context.fillText("立つ鳥うんこブリブリ", 458, 158);
-      context.font = "800 18px Georgia, serif";
+      context.strokeText("GMK", VIEW_WIDTH / 2, 154);
       context.fillStyle = "#ffcc69";
-      context.fillText("× GMK", 458, 181);
+      context.fillText("GMK", VIEW_WIDTH / 2, 154);
+      context.font = "900 15px \"Hiragino Mincho ProN\", \"Yu Mincho\", serif";
+      context.strokeStyle = "rgba(3, 2, 6, 0.94)";
+      context.strokeText("× 立つ鳥うんこブリブリ", VIEW_WIDTH / 2, 179);
+      context.fillStyle = "#fff1cf";
+      context.fillText("× 立つ鳥うんこブリブリ", VIEW_WIDTH / 2, 179);
       context.font = "bold 6px monospace";
       context.fillStyle = "#75ddd4";
-      context.fillText("SUPPORT ULTIMATE × PLAYER ULTIMATE", 458, 198);
+      context.fillText("PLAYER ULTIMATE × SUPPORT ULTIMATE", VIEW_WIDTH / 2, 198);
       context.fillStyle = "rgba(255, 241, 207, 0.74)";
-      context.fillText("某ガジェオタG × 某美少女N", 458, 212);
+      context.fillText("某美少女N × 某ガジェオタG", VIEW_WIDTH / 2, 212);
     } else {
       // Reference beat 10: a 1.1s impact tail with two pulses and a readable aftermath.
       const phase = (elapsed - SUPPORT_CINEMATIC_BEATS.linkedFinalEnd)
