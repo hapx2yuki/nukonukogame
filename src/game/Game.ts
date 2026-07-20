@@ -412,6 +412,7 @@ export class Game {
   private supportCinematicEvents = 0;
   private supportBarrageHits = 0;
   private supportFinaleAudioScheduled = false;
+  private supportTargetId: number | null = null;
   private supportCaptureTime: number | null = null;
   private readonly cleanSupportCapture =
     new URLSearchParams(window.location.search).get("capture") === "clean";
@@ -799,6 +800,7 @@ export class Game {
     this.supportCinematicEvents = 0;
     this.supportBarrageHits = 0;
     this.supportFinaleAudioScheduled = false;
+    this.supportTargetId = null;
     this.supportCaptureTime = null;
     this.midStoryTriggered = false;
     this.bossTriggered = false;
@@ -1309,12 +1311,14 @@ export class Game {
       }
       return;
     }
-    player.focus = 0;
-    this.syncUltimateUi();
     if (this.helper.active) {
-      this.startSupportCinematic();
+      if (!this.startSupportCinematic()) return;
+      player.focus = 0;
+      this.syncUltimateUi();
       return;
     }
+    player.focus = 0;
+    this.syncUltimateUi();
     player.ultimateTimer = ULTIMATE_DURATION;
     player.ultimateStruck = false;
     player.attackKind = "ultimate";
@@ -1440,8 +1444,54 @@ export class Game {
     this.announce("助っ人、某ガジェオタG参戦。ガジェット支援を開始");
   }
 
-  private startSupportCinematic(): void {
-    if (!this.helper.active || this.state !== "playing") return;
+  private chooseSupportTarget(): Enemy | undefined {
+    const playerCenter = this.player.x + this.player.w / 2;
+
+    return this.enemies
+      .filter((enemy) => {
+        if (!enemy.active || enemy.state === "dead") return false;
+        const enemyCenter = enemy.x + enemy.w / 2;
+        return Math.abs(enemyCenter - playerCenter) <= 720;
+      })
+      .sort((left, right) => {
+        if (left.kind === "boss" && right.kind !== "boss") return -1;
+        if (right.kind === "boss" && left.kind !== "boss") return 1;
+        const leftDistance = Math.abs(left.x + left.w / 2 - playerCenter);
+        const rightDistance = Math.abs(right.x + right.w / 2 - playerCenter);
+        return leftDistance - rightDistance;
+      })[0];
+  }
+
+  private supportTarget(): Enemy | undefined {
+    if (this.supportTargetId === null) return undefined;
+    return this.enemies.find((enemy) => enemy.id === this.supportTargetId);
+  }
+
+  private startSupportCinematic(): boolean {
+    if (!this.helper.active || this.state !== "playing") return false;
+    const target = this.chooseSupportTarget();
+    if (!target) {
+      this.announce("合体奥義を放てる敵が近くにいません");
+      return false;
+    }
+
+    this.supportTargetId = target.id;
+    const targetCenter = target.x + target.w / 2;
+    const facing: 1 | -1 =
+      targetCenter >= this.player.x + this.player.w / 2 ? 1 : -1;
+    this.player.facing = facing;
+    this.helper.facing = facing;
+
+    const targetScreenX = targetCenter - this.cameraX;
+    const leftTargetMargin = 96;
+    const rightTargetMargin = VIEW_WIDTH - 80;
+    if (targetScreenX < leftTargetMargin) {
+      this.cameraX = targetCenter - leftTargetMargin;
+    } else if (targetScreenX > rightTargetMargin) {
+      this.cameraX = targetCenter - rightTargetMargin;
+    }
+    this.cameraX = clamp(this.cameraX, 0, WORLD_WIDTH - VIEW_WIDTH);
+    this.targetCameraX = this.cameraX;
     this.supportCinematicTimer = SUPPORT_CINEMATIC_DURATION;
     this.supportCinematicEvents = 0;
     this.supportBarrageHits = 0;
@@ -1457,19 +1507,31 @@ export class Game {
     this.cinemaBars.classList.remove("is-visible");
     this.setSkillName("某美少女N × 某ガジェオタG", 0.42);
     this.audio.sfx("cutinOpen");
+    return true;
   }
 
   private supportCinematicTargets(limit = Number.POSITIVE_INFINITY): Enemy[] {
-    return this.enemies
-      .filter((enemy) => (
-        enemy.active
-        && enemy.state !== "dead"
-        && enemy.x + enemy.w >= this.cameraX - 72
-        && enemy.x <= this.cameraX + VIEW_WIDTH + 72
-        && Math.abs(enemy.x - this.player.x) <= 390
-      ))
-      .sort((left, right) => Math.abs(left.x - this.helper.x) - Math.abs(right.x - this.helper.x))
-      .slice(0, limit);
+    const primary = this.supportTarget();
+    if (!primary || !primary.active) return [];
+
+    const primaryCenter = primary.x + primary.w / 2;
+    const secondaryTargets = this.enemies
+      .filter((enemy) => {
+        if (enemy.id === primary.id || !enemy.active || enemy.state === "dead") return false;
+        const enemyCenter = enemy.x + enemy.w / 2;
+        return (
+          Math.abs(enemyCenter - primaryCenter) <= 390
+          && enemy.x + enemy.w >= this.cameraX - 96
+          && enemy.x <= this.cameraX + VIEW_WIDTH + 96
+        );
+      })
+      .sort(
+        (left, right) =>
+          Math.abs(left.x + left.w / 2 - primaryCenter)
+          - Math.abs(right.x + right.w / 2 - primaryCenter),
+      );
+
+    return [primary, ...secondaryTargets].slice(0, limit);
   }
 
   private updateSupportCinematic(delta: number): void {
@@ -1586,10 +1648,21 @@ export class Game {
           "ultimate",
         );
       }
-      for (let offset = -250; offset <= 250; offset += 38) {
+      const primaryTarget = this.supportTarget();
+      const strikeCenterX = primaryTarget
+        ? primaryTarget.x + primaryTarget.w / 2
+        : this.player.x + this.player.w / 2;
+      const strikeCenterY = primaryTarget
+        ? primaryTarget.y + primaryTarget.h * 0.45
+        : this.player.y + this.player.h * 0.45;
+      for (let offset = -220; offset <= 220; offset += 38) {
         this.slashes.push({
-          x: this.player.x + offset,
-          y: 64 + seeded(offset + 881) * 150,
+          x: strikeCenterX + offset,
+          y: clamp(
+            strikeCenterY - 88 + seeded(offset + 881) * 176,
+            40,
+            GROUND_Y - 18,
+          ),
           life: 0.5,
           maxLife: 0.5,
           radius: 68 + seeded(offset + 92) * 34,
@@ -1610,6 +1683,7 @@ export class Game {
       this.supportCinematicEvents = 0;
       this.supportBarrageHits = 0;
       this.supportFinaleAudioScheduled = false;
+      this.supportTargetId = null;
       this.supportCaptureTime = null;
       this.player.attackKind = "slash";
       this.player.invulnerable = 0.6;
@@ -4290,10 +4364,14 @@ export class Game {
       }
       context.restore();
     };
-    const primaryTarget = this.supportCinematicTargets(1)[0];
+    const primaryTarget = this.supportTarget();
     const targetX = primaryTarget
-      ? clamp(primaryTarget.x - this.cameraX + primaryTarget.w / 2, 314, 404)
-      : 366;
+      ? clamp(
+          primaryTarget.x - this.cameraX + primaryTarget.w / 2,
+          72,
+          VIEW_WIDTH - 48,
+        )
+      : VIEW_WIDTH * 0.68;
     const targetY = primaryTarget
       ? clamp(primaryTarget.y + primaryTarget.h * 0.42, 102, 184)
       : 139;
