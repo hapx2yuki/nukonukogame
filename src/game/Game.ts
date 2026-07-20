@@ -382,6 +382,10 @@ export class Game {
   private checkpointX = 70;
   private upgrade: Upgrade = null;
   private upgradeTriggered = false;
+  private upgradeCursor = 0;
+  private upgradeDirectionLatch = 0;
+  private upgradeInputArmed = false;
+  private resultInputArmed = false;
   private helperTriggered = false;
   private supportCinematicTimer = 0;
   private supportCinematicEvents = 0;
@@ -437,6 +441,7 @@ export class Game {
   private ariaLive = element<HTMLDivElement>("aria-live");
   private ultimateButton = document.querySelector<HTMLButtonElement>('[data-control="ultimate"]');
   private ultimateTouchCount = element<HTMLElement>("gmk-touch-count");
+  private upgradeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-upgrade]"));
 
   constructor(canvas: HTMLCanvasElement, audio: AudioEngine, callbacks: GameCallbacks) {
     const context = canvas.getContext("2d", { alpha: false });
@@ -579,6 +584,8 @@ export class Game {
     if (this.state !== "upgrade") return;
     this.upgrade = upgrade;
     this.upgradeOverlay.classList.remove("is-visible");
+    this.upgradeButtons.forEach((button) => button.classList.remove("is-gamepad-selected"));
+    this.input.clearPressed();
     this.audio.sfx("select");
     const names: Record<Exclude<Upgrade, null>, string> = {
       fire: "猫又火",
@@ -590,6 +597,54 @@ export class Game {
     this.state = "playing";
     this.checkpointX = 2030;
     this.announce(`${names[upgrade]}を得た`);
+  }
+
+  private focusUpgradeButton(): void {
+    this.upgradeButtons.forEach((button, index) => {
+      button.classList.toggle("is-gamepad-selected", index === this.upgradeCursor);
+    });
+    this.upgradeButtons[this.upgradeCursor]?.focus({ preventScroll: true });
+  }
+
+  private updateUpgradeSelection(): void {
+    if (!this.upgradeInputArmed) {
+      const actionHeld =
+        this.input.down("confirm")
+        || this.input.down("attack")
+        || this.input.down("charm")
+        || this.input.down("dash")
+        || this.input.down("ultimate");
+      if (!actionHeld) {
+        this.upgradeInputArmed = true;
+        this.input.clearPressed();
+      }
+    }
+
+    const direction = (this.input.down("right") ? 1 : 0) - (this.input.down("left") ? 1 : 0);
+    if (direction === 0) {
+      this.upgradeDirectionLatch = 0;
+    } else if (this.upgradeDirectionLatch === 0) {
+      this.upgradeDirectionLatch = direction;
+      this.upgradeCursor = (this.upgradeCursor + direction + this.upgradeButtons.length) % this.upgradeButtons.length;
+      this.audio.sfx("select");
+      this.focusUpgradeButton();
+    }
+
+    if (!this.upgradeInputArmed) return;
+    if (!this.input.consume("confirm") && !this.input.consume("attack")) return;
+    const value = this.upgradeButtons[this.upgradeCursor]?.dataset.upgrade;
+    if (value === "fire" || value === "bell" || value === "moon") this.selectUpgrade(value);
+  }
+
+  private updateResultInput(): void {
+    if (!this.resultInputArmed) {
+      if (!this.input.down("confirm") && !this.input.down("attack")) {
+        this.resultInputArmed = true;
+        this.input.clearPressed();
+      }
+      return;
+    }
+    if (this.input.consume("confirm") || this.input.consume("attack")) this.start();
   }
 
   setShakeEnabled(enabled: boolean): void {
@@ -670,6 +725,10 @@ export class Game {
     this.checkpointX = 70;
     this.upgrade = null;
     this.upgradeTriggered = false;
+    this.upgradeCursor = 0;
+    this.upgradeDirectionLatch = 0;
+    this.upgradeInputArmed = false;
+    this.resultInputArmed = false;
     this.helperTriggered = false;
     this.supportCinematicTimer = 0;
     this.supportCinematicEvents = 0;
@@ -697,6 +756,7 @@ export class Game {
     this.enemies = this.createEnemies();
     this.storyOverlay.classList.remove("is-visible");
     this.upgradeOverlay.classList.remove("is-visible");
+    this.upgradeButtons.forEach((button) => button.classList.remove("is-gamepad-selected"));
     this.pauseOverlay.classList.remove("is-visible");
     this.resultsOverlay.classList.remove("is-visible");
     this.bossTitle.classList.remove("is-visible");
@@ -800,7 +860,13 @@ export class Game {
       || this.state === "dead"
     ) {
       this.updateFrame(rawDelta);
-    } else if (this.state === "paused" || this.state === "upgrade" || this.state === "victory") {
+    } else if (this.state === "upgrade") {
+      this.updateUpgradeSelection();
+      this.updateParticles(rawDelta * 0.25);
+    } else if (this.state === "victory") {
+      this.updateResultInput();
+      this.updateParticles(rawDelta * 0.25);
+    } else if (this.state === "paused") {
       this.updateParticles(rawDelta * 0.25);
     }
 
@@ -900,12 +966,13 @@ export class Game {
       player.vy = 0;
       if (Math.floor(player.dashTimer * 90) % 2 === 0) this.spawnAfterimage("#ffbd45");
     } else if (player.hurtTimer <= 0) {
-      const horizontal = (this.input.down("right") ? 1 : 0) - (this.input.down("left") ? 1 : 0);
-      if (horizontal !== 0) {
-        player.facing = horizontal as 1 | -1;
+      const horizontal = this.input.horizontal();
+      if (Math.abs(horizontal) > 0.01) {
+        player.facing = horizontal > 0 ? 1 : -1;
         const acceleration = player.grounded ? 840 : 510;
         player.vx += horizontal * acceleration * delta;
-        player.vx = clamp(player.vx, -PLAYER_SPEED, PLAYER_SPEED);
+        const analogSpeed = PLAYER_SPEED * (0.42 + Math.abs(horizontal) * 0.58);
+        player.vx = clamp(player.vx, -analogSpeed, analogSpeed);
       } else {
         const drag = player.grounded ? 820 : 95;
         if (Math.abs(player.vx) <= drag * delta) player.vx = 0;
@@ -1203,7 +1270,11 @@ export class Game {
       this.upgradeTriggered = true;
       this.state = "upgrade";
       this.input.reset();
+      this.upgradeCursor = 0;
+      this.upgradeDirectionLatch = 0;
+      this.upgradeInputArmed = false;
       this.upgradeOverlay.classList.add("is-visible");
+      this.focusUpgradeButton();
       this.audio.sfx("select");
       this.announce("日輪符の加護を選ぶ");
       return;
@@ -2261,6 +2332,7 @@ export class Game {
   private showResults(): void {
     this.state = "victory";
     this.input.reset();
+    this.resultInputArmed = false;
     this.cinemaBars.classList.remove("is-visible");
     this.resultsOverlay.classList.add("is-visible");
     const timeBonus = Math.max(0, Math.floor(36000 - this.runTime * 80));

@@ -22,12 +22,16 @@ const audio = new AudioEngine();
 let soundEnabled = localStorage.getItem("bishoujo-n-sound") !== "off";
 let shakeEnabled = localStorage.getItem("bishoujo-n-shake") !== "off";
 let flashesEnabled = localStorage.getItem("bishoujo-n-flashes") !== "off";
+let gameStartPending = false;
+let titleGamepadHeld = false;
 audio.setMuted(!soundEnabled);
 
 function showTitle(): void {
   document.body.classList.remove("game-active");
+  document.body.classList.remove("mobile-immersive");
   gameScreen.classList.remove("is-active");
   titleScreen.classList.add("is-active");
+  if (document.fullscreenElement === gameScreen) void document.exitFullscreen().catch(() => undefined);
   window.setTimeout(() => byId<HTMLButtonElement>("start-button").focus(), 350);
 }
 
@@ -58,15 +62,36 @@ function toggleSound(): void {
   syncSettings();
 }
 
-async function startGame(): Promise<void> {
-  if (new URLSearchParams(window.location.search).has("debug")) {
-    showGame();
-    game.start();
-    return;
+function isMobilePlayDevice(): boolean {
+  return navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches || matchMedia("(hover: none) and (any-pointer: coarse)").matches;
+}
+
+async function enterMobileFullscreen(): Promise<void> {
+  if (!isMobilePlayDevice() || document.fullscreenElement === gameScreen) return;
+  try {
+    await gameScreen.requestFullscreen();
+    document.body.classList.remove("mobile-immersive");
+    await lockLandscapeOrientation();
+  } catch {
+    // iOSなど任意要素の全画面化に未対応の端末では、画面内を最大化する代替表示にする。
+    document.body.classList.add("mobile-immersive");
+    window.scrollTo({ top: 0, behavior: "instant" });
   }
-  await audio.start();
+}
+
+async function startGame(): Promise<void> {
+  if (gameStartPending) return;
+  gameStartPending = true;
   showGame();
-  game.start();
+  const debugMode = new URLSearchParams(window.location.search).has("debug");
+  const soundReady = debugMode ? Promise.resolve() : audio.start();
+  const fullscreenReady = enterMobileFullscreen();
+  try {
+    await Promise.allSettled([soundReady, fullscreenReady]);
+    game.start();
+  } finally {
+    gameStartPending = false;
+  }
 }
 
 byId<HTMLButtonElement>("start-button").addEventListener("click", () => void startGame());
@@ -77,10 +102,7 @@ byId<HTMLButtonElement>("pause-button").addEventListener("click", () => game.tog
 byId<HTMLButtonElement>("resume-button").addEventListener("click", () => game.resume());
 byId<HTMLButtonElement>("title-button").addEventListener("click", () => game.returnToTitle());
 byId<HTMLButtonElement>("result-title-button").addEventListener("click", () => game.returnToTitle());
-byId<HTMLButtonElement>("retry-button").addEventListener("click", () => {
-  void audio.start();
-  game.start();
-});
+byId<HTMLButtonElement>("retry-button").addEventListener("click", () => void startGame());
 
 shakeButton.addEventListener("click", () => {
   shakeEnabled = !shakeEnabled;
@@ -129,16 +151,46 @@ async function lockLandscapeOrientation(): Promise<void> {
 
 fullscreenButton.addEventListener("click", async () => {
   try {
-    if (document.fullscreenElement) await document.exitFullscreen();
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      document.body.classList.remove("mobile-immersive");
+    }
     else {
       await gameScreen.requestFullscreen();
+      document.body.classList.remove("mobile-immersive");
       await lockLandscapeOrientation();
     }
   } catch {
     byId<HTMLElement>("aria-live").textContent = "この端末では全画面表示を利用できません";
   }
 });
-document.addEventListener("fullscreenchange", syncFullscreenButton);
+document.addEventListener("fullscreenchange", () => {
+  game.releaseInputs();
+  syncFullscreenButton();
+});
+
+const preventGameSelection = (event: Event) => {
+  if (document.body.classList.contains("game-active")) event.preventDefault();
+};
+gameScreen.addEventListener("selectstart", preventGameSelection);
+gameScreen.addEventListener("dragstart", preventGameSelection);
+gameScreen.addEventListener("contextmenu", preventGameSelection);
+
+function pollTitleGamepad(): void {
+  const pad = Array.from(navigator.getGamepads?.() ?? []).find((candidate): candidate is Gamepad => Boolean(candidate?.connected));
+  const startPressed = Boolean(pad?.buttons[0]?.pressed || pad?.buttons[9]?.pressed);
+  if (titleScreen.classList.contains("is-active") && startPressed && !titleGamepadHeld) void startGame();
+  titleGamepadHeld = startPressed;
+  window.requestAnimationFrame(pollTitleGamepad);
+}
+
+window.addEventListener("gamepadconnected", (event) => {
+  byId<HTMLElement>("aria-live").textContent = `${event.gamepad.id || "ゲームパッド"}を接続しました。AまたはSTARTで開始できます`;
+});
+window.addEventListener("gamepaddisconnected", () => {
+  game.releaseInputs();
+  byId<HTMLElement>("aria-live").textContent = "ゲームパッドの接続が解除されました";
+});
 
 document.addEventListener("pointerdown", () => void audio.start(), { once: true });
 document.addEventListener("visibilitychange", () => {
@@ -160,3 +212,4 @@ titleScreen.addEventListener("pointerleave", () => {
 
 syncSettings();
 syncFullscreenButton();
+pollTitleGamepad();

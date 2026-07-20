@@ -136,10 +136,13 @@
           <div id="touch-controls" class="touch-controls" aria-label="タッチ操作">
             <div class="touch-left">
               <span class="touch-rail-label" aria-hidden="true">MOVE</span>
-              <div class="touch-dpad">
-                <button type="button" class="move-left" data-control="left" aria-label="左へ移動"><span>◀</span><small>LEFT</small></button>
-                <button type="button" class="down" data-control="down" aria-label="しゃがむ、または空中で急降下"><span>▼</span><small>DOWN</small></button>
-                <button type="button" class="move-right" data-control="right" aria-label="右へ移動"><span>▶</span><small>RIGHT</small></button>
+              <div class="touch-stick" data-stick="move" role="group" aria-label="移動スティック。左右に倒して移動、下に倒してしゃがむ、または空中で急降下">
+                <div class="touch-stick-gate" aria-hidden="true">
+                  <span class="touch-stick-axis touch-stick-axis-horizontal"></span>
+                  <span class="touch-stick-axis touch-stick-axis-vertical"></span>
+                  <span class="touch-stick-knob"><i></i></span>
+                </div>
+                <small aria-hidden="true">DRAG TO MOVE</small>
               </div>
             </div>
             <div class="touch-right">
@@ -173,7 +176,7 @@
           <div><span>02</span><strong>影を走る</strong><p>敵の攻撃直前に<kbd>L</kbd>。時が止まる「金刻」が発生。</p></div>
           <div><span>03</span><strong>GMK</strong><p>敵に攻撃を5回当てると発動可能。<kbd>E</kbd>で画面すべてを断つ奥義。</p></div>
         </div>
-        <p class="howto-note">ゲームパッド：左スティック / A 跳ぶ / X 斬撃 / Y 護符 / RB 影走り / LT+RT 奥義　スマホ：横向きで、左の操作帯が移動、右の操作帯が攻撃</p>
+        <p class="howto-note">ゲームパッド：左スティック / A 跳ぶ / X 斬撃 / Y 護符 / B・RB 影走り / LB・LT+RT 奥義　スマホ：横向きで、左スティックを指で倒して移動、右の操作帯で攻撃</p>
         <button class="primary-button compact" value="close">わかった</button>
       </form>
     </dialog>
