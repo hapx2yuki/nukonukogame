@@ -4374,21 +4374,13 @@ export class Game {
       );
       context.restore();
 
-      const ink = context.createLinearGradient(150, 0, VIEW_WIDTH, 0);
+      const ink = context.createLinearGradient(108, 0, VIEW_WIDTH, 0);
       ink.addColorStop(0, "rgba(2, 5, 9, 0)");
-      ink.addColorStop(0.5, "rgba(2, 5, 9, 0.08)");
-      ink.addColorStop(0.78, "rgba(2, 5, 9, 0.26)");
-      ink.addColorStop(1, "rgba(1, 4, 8, 0.56)");
+      ink.addColorStop(0.34, "rgba(2, 5, 9, 0.06)");
+      ink.addColorStop(0.68, "rgba(2, 5, 9, 0.38)");
+      ink.addColorStop(1, "rgba(1, 4, 8, 0.78)");
       context.fillStyle = ink;
-      context.fillRect(118, 0, VIEW_WIDTH - 118, VIEW_HEIGHT);
-
-      const titleInk = context.createLinearGradient(0, 94, 0, VIEW_HEIGHT);
-      titleInk.addColorStop(0, "rgba(1, 4, 8, 0)");
-      titleInk.addColorStop(0.32, "rgba(1, 4, 8, 0.3)");
-      titleInk.addColorStop(0.7, "rgba(1, 4, 8, 0.8)");
-      titleInk.addColorStop(1, "rgba(1, 4, 8, 0.48)");
-      context.fillStyle = titleInk;
-      context.fillRect(180, 78, VIEW_WIDTH - 180, VIEW_HEIGHT - 78);
+      context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
       context.globalAlpha = alpha;
       context.strokeStyle = "#ffcf67";
