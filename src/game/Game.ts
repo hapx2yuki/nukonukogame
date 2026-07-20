@@ -22,7 +22,7 @@ const SUPPORT_CINEMATIC_BEATS = {
   helperStrikeEnd: 3.55,
   gmkUltimateEnd: 5,
   combinedRushEnd: 6.27,
-  linkedFinalEnd: 6.86,
+  linkedFinalEnd: 7.35,
 } as const;
 
 type GameState = "idle" | "story" | "playing" | "upgrade" | "paused" | "cinematic" | "supportCinematic" | "victory" | "dead";
@@ -443,6 +443,8 @@ export class Game {
   private backgroundPlate = loadGameImage("/assets/game/glass-slope-background.png");
   private gmkCutin = loadGameImage("/assets/game/gmk-cutin.png");
   private helperCutin = loadGameImage("/assets/game/helper-cutin.png");
+  private helperUltimateCard = loadGameImage("/assets/game/helper-ultimate-card.png");
+  private linkedUltimateCard = loadGameImage("/assets/game/linked-ultimate-card.png");
 
   private storyOverlay = element<HTMLDivElement>("story-overlay");
   private storySpeaker = element<HTMLParagraphElement>("story-speaker");
@@ -2449,11 +2451,11 @@ export class Game {
     this.drawDamageNumbers(context);
     context.restore();
 
-    this.drawSupportComboOverlay(context);
     if (this.state !== "idle") this.drawHud(context);
     this.drawTechniqueBanner(context);
     this.drawTutorialPrompts(context);
     this.drawUltimateOverlay(context);
+    this.drawSupportComboOverlay(context);
     this.drawScreenEffects(context);
     context.restore();
   }
@@ -4118,6 +4120,33 @@ export class Game {
       );
       context.restore();
     };
+    const drawFullFrameCard = (
+      image: HTMLImageElement,
+      alpha: number,
+      offsetX = 0,
+      zoom = 1,
+    ): boolean => {
+      if (!imageReady(image)) return false;
+      const width = VIEW_WIDTH * zoom;
+      const height = VIEW_HEIGHT * zoom;
+      context.save();
+      context.globalAlpha = alpha;
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(
+        image,
+        0,
+        0,
+        image.naturalWidth,
+        image.naturalHeight,
+        (VIEW_WIDTH - width) * 0.5 + offsetX,
+        (VIEW_HEIGHT - height) * 0.5,
+        width,
+        height,
+      );
+      context.restore();
+      return true;
+    };
     const drawGadget = (
       frame: number,
       x: number,
@@ -4197,6 +4226,48 @@ export class Game {
     context.fillStyle = "rgba(2, 3, 7, 0.48)";
     context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
+    // The approved 1600×900 cards replace the old generic gadget-attack plate.
+    // Drawing the complete frame preserves the exact composition and prevents cropping.
+    if (
+      elapsed >= SUPPORT_CINEMATIC_BEATS.linkPulseEnd
+      && elapsed < SUPPORT_CINEMATIC_BEATS.helperUltimateEnd
+    ) {
+      const phase = (elapsed - SUPPORT_CINEMATIC_BEATS.linkPulseEnd)
+        / (SUPPORT_CINEMATIC_BEATS.helperUltimateEnd - SUPPORT_CINEMATIC_BEATS.linkPulseEnd);
+      const reveal = easeOut(phase * 6.5);
+      const exit = easeOut((phase - 0.94) / 0.06);
+      context.fillStyle = "#02060a";
+      context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+      drawFullFrameCard(
+        this.helperUltimateCard,
+        reveal * (1 - exit),
+        -(1 - reveal) * 58 - exit * 76,
+        1 + phase * 0.006,
+      );
+      context.restore();
+      return;
+    }
+
+    if (
+      elapsed >= SUPPORT_CINEMATIC_BEATS.combinedRushEnd
+      && elapsed < SUPPORT_CINEMATIC_BEATS.linkedFinalEnd
+    ) {
+      const phase = (elapsed - SUPPORT_CINEMATIC_BEATS.combinedRushEnd)
+        / (SUPPORT_CINEMATIC_BEATS.linkedFinalEnd - SUPPORT_CINEMATIC_BEATS.combinedRushEnd);
+      const reveal = easeOut(phase * 6);
+      const exit = easeOut((phase - 0.95) / 0.05);
+      context.fillStyle = "#050207";
+      context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+      drawFullFrameCard(
+        this.linkedUltimateCard,
+        reveal * (1 - exit),
+        (1 - reveal) * 48 + exit * 64,
+        1 + phase * 0.004,
+      );
+      context.restore();
+      return;
+    }
+
     if (elapsed < SUPPORT_CINEMATIC_BEATS.linkedPortraitEnd) {
       // Reference beat 1: a short dual portrait establishes that both arts are allied.
       const phase = elapsed / SUPPORT_CINEMATIC_BEATS.linkedPortraitEnd;
@@ -4255,7 +4326,7 @@ export class Game {
       context.fillText("某美少女N × 某ガジェオタG", 243, 162);
       context.font = "bold 7px monospace";
       context.fillStyle = "#74e4df";
-      context.fillText("DOUBLE CUT-IN / CO-OP ATTACK", 243, 181);
+      context.fillText("DOUBLE CUT-IN / CO-OP ARTS", 243, 181);
       context.fillStyle = "#ffcf69";
       context.fillText("GMK × SUPPORT ULTIMATE", 243, 195);
     } else if (elapsed < SUPPORT_CINEMATIC_BEATS.linkPulseEnd) {
