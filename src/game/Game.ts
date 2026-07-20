@@ -383,7 +383,6 @@ export class Game {
   private upgrade: Upgrade = null;
   private upgradeTriggered = false;
   private helperTriggered = false;
-  private supportCinematicPlayed = false;
   private supportCinematicTimer = 0;
   private supportCinematicEvents = 0;
   private midStoryTriggered = false;
@@ -470,7 +469,7 @@ export class Game {
     this.state = "story";
     this.audio.setMode("explore");
     const debug = new URLSearchParams(window.location.search).get("debug");
-    if (debug === "support") {
+    if (debug === "helper" || debug === "support") {
       this.state = "playing";
       this.player.x = HELPER_TRIGGER_X + 8;
       this.player.y = GROUND_Y - this.player.h;
@@ -482,6 +481,11 @@ export class Game {
       this.upgrade = "moon";
       this.upgradeTriggered = true;
       this.triggerHelper();
+      if (debug === "support") {
+        this.player.focus = ULTIMATE_HITS_REQUIRED;
+        this.syncUltimateUi();
+        this.startUltimate();
+      }
       return;
     }
     if (debug === "boss" || debug === "victory") {
@@ -667,7 +671,6 @@ export class Game {
     this.upgrade = null;
     this.upgradeTriggered = false;
     this.helperTriggered = false;
-    this.supportCinematicPlayed = false;
     this.supportCinematicTimer = 0;
     this.supportCinematicEvents = 0;
     this.midStoryTriggered = false;
@@ -1145,6 +1148,10 @@ export class Game {
     }
     player.focus = 0;
     this.syncUltimateUi();
+    if (this.helper.active) {
+      this.startSupportCinematic();
+      return;
+    }
     player.ultimateTimer = ULTIMATE_DURATION;
     player.ultimateStruck = false;
     player.attackKind = "ultimate";
@@ -1263,21 +1270,22 @@ export class Game {
     this.addRing(this.helper.x, this.helper.y + 24, "#ffe69a", 42);
     this.audio.sfx("select");
     this.announce("助っ人、某ガジェオタG参戦。ガジェット支援を開始");
-    this.startSupportCinematic();
   }
 
   private startSupportCinematic(): void {
-    if (this.supportCinematicPlayed) return;
-    this.supportCinematicPlayed = true;
+    if (!this.helper.active || this.state !== "playing") return;
     this.supportCinematicTimer = SUPPORT_CINEMATIC_DURATION;
     this.supportCinematicEvents = 0;
     this.state = "supportCinematic";
     this.player.vx = 0;
     this.player.vy = 0;
+    this.player.invulnerable = SUPPORT_CINEMATIC_DURATION + 0.25;
     this.helper.vx = 0;
+    this.helper.state = "cheer";
+    this.helper.stateTimer = 0.4;
     this.input.reset();
     this.cinemaBars.classList.add("is-visible");
-    this.setSkillName("助っ人参戦・某ガジェオタG", 0.5);
+    this.setSkillName("連携奥義・某ガジェオタG", 0.5);
   }
 
   private supportCinematicTargets(limit = Number.POSITIVE_INFINITY): Enemy[] {
@@ -3960,7 +3968,7 @@ export class Game {
     context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
     if (elapsed < 0.36) {
-      // The support sprite lands first; the card then tears in from the left.
+      // Confirm the existing support link before its special card tears in from the left.
       const phase = easeOut(elapsed / 0.36);
       context.fillStyle = `rgba(2, 5, 9, ${0.22 + phase * 0.58})`;
       context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
