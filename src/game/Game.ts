@@ -4649,7 +4649,7 @@ export class Game {
       context.fillStyle = "#050207";
       context.fillRect(0, 15, VIEW_WIDTH, 240);
 
-      // Left: the full support attack pose and all four gadgets.
+      // Left: the complete GMK sword pose, matching the protagonist-first reading order.
       context.save();
       context.beginPath();
       context.moveTo(-12, 18);
@@ -4658,18 +4658,18 @@ export class Game {
       context.lineTo(-12, 252);
       context.closePath();
       context.clip();
-      context.fillStyle = "#031015";
+      context.fillStyle = "#12090a";
       context.fillRect(0, 18, 264, 234);
       drawActionHalf(
-        this.helperCutin,
-        0,
-        this.helperCutin.naturalWidth * 0.625,
+        this.gmkCutin,
+        this.gmkCutin.naturalWidth * 0.375,
+        this.gmkCutin.naturalWidth * 0.625,
         "left",
         -(1 - reveal) * 76 - exit * 92,
       );
       context.restore();
 
-      // Right: the complete GMK sword pose, including the blade arc.
+      // Right: the full support attack pose and all four gadgets.
       context.save();
       context.beginPath();
       context.moveTo(258, 18);
@@ -4678,12 +4678,12 @@ export class Game {
       context.lineTo(226, 252);
       context.closePath();
       context.clip();
-      context.fillStyle = "#12090a";
+      context.fillStyle = "#031015";
       context.fillRect(218, 18, 262, 234);
       drawActionHalf(
-        this.gmkCutin,
-        this.gmkCutin.naturalWidth * 0.375,
-        this.gmkCutin.naturalWidth * 0.625,
+        this.helperCutin,
+        0,
+        this.helperCutin.naturalWidth * 0.625,
         "right",
         (1 - reveal) * 76 + exit * 92,
       );
@@ -4720,13 +4720,13 @@ export class Game {
       context.stroke();
 
       context.textAlign = "left";
-      context.font = "bold 5.5px monospace";
-      context.fillStyle = "#74e4df";
-      context.fillText("SUPPORT / 某ガジェオタG", 16, 45);
-      context.textAlign = "right";
       context.font = "bold 7px monospace";
       context.fillStyle = "#ffcc69";
-      context.fillText("GMK / 某美少女N", 464, 38);
+      context.fillText("GMK / 某美少女N", 16, 38);
+      context.textAlign = "right";
+      context.font = "bold 5.5px monospace";
+      context.fillStyle = "#74e4df";
+      context.fillText("SUPPORT / 某ガジェオタG", 464, 45);
 
       context.textAlign = "center";
       context.font = "italic 800 10px Georgia, serif";
