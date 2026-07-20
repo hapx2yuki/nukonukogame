@@ -17,6 +17,13 @@ export type SoundName =
   | "select"
   | "dialogue"
   | "cutin"
+  | "cutinOpen"
+  | "cutinSupport"
+  | "cutinGmk"
+  | "cutinLinked"
+  | "supportImpact"
+  | "ultimateImpact"
+  | "bossPhase"
   | "helper"
   | "gadgetThrow"
   | "gadgetImpact"
@@ -54,10 +61,17 @@ const GENERATED_SOUNDS: Record<SoundName, GeneratedSoundConfig> = {
   select: { path: "/assets/audio/sfx/ui-select.mp3", gain: 0.68 },
   dialogue: { path: "/assets/audio/sfx/dialogue-tick.mp3", gain: 0.28 },
   cutin: { path: "/assets/audio/sfx/cutin-kin.mp3", gain: 0.84 },
+  cutinOpen: { path: "/assets/audio/sfx/cutin-open.mp3", gain: 0.88 },
+  cutinSupport: { path: "/assets/audio/sfx/cutin-support.mp3", gain: 0.9 },
+  cutinGmk: { path: "/assets/audio/sfx/cutin-gmk.mp3", gain: 0.94 },
+  cutinLinked: { path: "/assets/audio/sfx/cutin-linked.mp3", gain: 0.98 },
+  supportImpact: { path: "/assets/audio/sfx/ultimate-impact.mp3", gain: 0.68, playbackRate: 1.08 },
+  ultimateImpact: { path: "/assets/audio/sfx/ultimate-impact.mp3", gain: 0.96 },
+  bossPhase: { path: "/assets/audio/sfx/boss-phase-shift.mp3", gain: 0.92 },
   helper: { path: "/assets/audio/sfx/helper-entrance.mp3", gain: 0.8 },
   gadgetThrow: { path: "/assets/audio/sfx/gadget-throw.mp3", gain: 0.72 },
   gadgetImpact: { path: "/assets/audio/sfx/gadget-impact.mp3", gain: 0.74 },
-  linkedUltimate: { path: "/assets/audio/sfx/linked-finisher.mp3", gain: 0.82 },
+  linkedUltimate: { path: "/assets/audio/sfx/linked-finisher.mp3", gain: 0.98 },
 };
 
 const FOOTSTEP_SOUNDS: Record<"wood" | "stone" | "metal", GeneratedSoundConfig> = {
@@ -69,7 +83,7 @@ const FOOTSTEP_SOUNDS: Record<"wood" | "stone" | "metal", GeneratedSoundConfig> 
 const MUSIC_TRACKS: Record<MusicMode, MusicTrackConfig> = {
   explore: { path: "/assets/audio/music/explore.mp3", gain: 0.82 },
   combat: { path: "/assets/audio/music/combat.mp3", gain: 0.66 },
-  boss: { path: "/assets/audio/music/boss.mp3", gain: 0.52 },
+  boss: { path: "/assets/audio/music/boss.mp3", gain: 0.74 },
   victory: { path: "/assets/audio/music/victory.mp3", gain: 0.84 },
 };
 
@@ -114,7 +128,7 @@ export class AudioEngine {
       this.master = this.context.createGain();
       this.master.gain.value = this.muted || this.pageHidden ? 0 : 0.72;
       this.musicBus = this.context.createGain();
-      this.musicBus.gain.value = 0.32;
+      this.musicBus.gain.value = this.targetMusicGain();
       this.sfxBus = this.context.createGain();
       this.sfxBus.gain.value = 0.75;
       this.musicBus.connect(this.master);
@@ -162,7 +176,7 @@ export class AudioEngine {
     if (this.context && this.musicBus) {
       const now = this.context.currentTime;
       this.musicBus.gain.cancelScheduledValues(now);
-      this.musicBus.gain.setTargetAtTime(mode === "victory" ? 0.34 : 0.32, now, 0.25);
+      this.musicBus.gain.setTargetAtTime(this.targetMusicGain(), now, 0.25);
     }
     if (this.started && !this.startGeneratedMusic(mode)) this.startMusicLoop();
   }
@@ -192,6 +206,14 @@ export class AudioEngine {
 
   sfx(name: SoundName): void {
     if (!this.ready()) return;
+    if (name === "cutinOpen") this.duckMusic(0.84, 0.38);
+    else if (name === "cutinSupport") this.duckMusic(0.96, 0.31);
+    else if (name === "cutinGmk") this.duckMusic(1.02, 0.25);
+    else if (name === "cutinLinked") this.duckMusic(1.48, 0.16);
+    else if (name === "supportImpact") this.duckMusic(0.82, 0.42);
+    else if (name === "ultimateImpact") this.duckMusic(1.18, 0.24);
+    else if (name === "linkedUltimate") this.duckMusic(1.72, 0.1);
+    else if (name === "bossPhase") this.duckMusic(1.32, 0.2);
     if (this.playGeneratedSound(name)) return;
     switch (name) {
       case "attack":
@@ -253,6 +275,48 @@ export class AudioEngine {
         this.sweep(86, 1420, 0.55, 0.16, "sawtooth");
         this.chime([440, 660, 880, 1320], 0.72, 0.085, 0.12);
         this.noise(0.5, 0.18, 3600, 0.14);
+        break;
+      case "cutinOpen":
+        this.sweep(180, 1680, 0.28, 0.14, "sawtooth");
+        this.chime([880, 1320, 1760], 0.48, 0.11);
+        this.tone(48, 0.46, "triangle", 0.14, 38);
+        break;
+      case "cutinSupport":
+        this.sweep(360, 1960, 0.36, 0.14, "sine");
+        this.chime([740, 1110, 1480, 2220], 0.62, 0.12);
+        this.noise(0.2, 0.1, 5200, 0.08);
+        break;
+      case "cutinGmk":
+        this.sweep(220, 2320, 0.38, 0.18, "sawtooth");
+        this.chime([880, 1320, 1760, 2640], 0.7, 0.13);
+        this.tone(52, 0.54, "triangle", 0.17, 34, 0.08);
+        break;
+      case "cutinLinked":
+        this.sweep(90, 2600, 0.72, 0.2, "sawtooth");
+        this.chime([523, 784, 1046, 1568, 2093], 0.92, 0.15, 0.12);
+        this.tone(38, 0.86, "triangle", 0.22, 28, 0.24);
+        this.noise(0.48, 0.14, 4200, 0.25);
+        break;
+      case "supportImpact":
+        this.noise(0.58, 0.18, 1200);
+        this.tone(54, 0.56, "triangle", 0.17, 32);
+        this.sweep(1380, 120, 0.46, 0.13, "sawtooth");
+        break;
+      case "ultimateImpact":
+        this.noise(0.9, 0.24, 980);
+        this.tone(46, 0.86, "triangle", 0.24, 24);
+        this.sweep(1600, 90, 0.64, 0.17, "sawtooth");
+        break;
+      case "bossPhase":
+        this.tone(42, 1.08, "sawtooth", 0.2, 29);
+        this.sweep(120, 1640, 0.82, 0.17, "square");
+        this.noise(0.72, 0.18, 720, 0.14);
+        break;
+      case "linkedUltimate":
+        this.noise(1.22, 0.28, 860);
+        this.tone(36, 1.18, "triangle", 0.28, 20);
+        this.sweep(2400, 72, 0.9, 0.2, "sawtooth");
+        this.chime([660, 990, 1320, 1980], 1.3, 0.12, 0.18);
         break;
       case "victory":
         this.chime([392, 523, 659, 784, 1046], 1.2, 0.075);
@@ -335,6 +399,25 @@ export class AudioEngine {
     source.connect(gain);
     gain.connect(this.sfxBus);
     source.start(this.context.currentTime + delay);
+  }
+
+  private targetMusicGain(): number {
+    if (this.mode === "boss") return 0.37;
+    if (this.mode === "victory") return 0.34;
+    return 0.32;
+  }
+
+  private duckMusic(duration: number, depth: number): void {
+    if (!this.context || !this.musicBus) return;
+    const now = this.context.currentTime;
+    const target = this.targetMusicGain();
+    const ducked = Math.max(0.035, target * depth);
+    const current = Math.max(0.0001, this.musicBus.gain.value);
+    this.musicBus.gain.cancelScheduledValues(now);
+    this.musicBus.gain.setValueAtTime(current, now);
+    this.musicBus.gain.exponentialRampToValueAtTime(ducked, now + 0.045);
+    this.musicBus.gain.setValueAtTime(ducked, now + Math.max(0.08, duration * 0.58));
+    this.musicBus.gain.exponentialRampToValueAtTime(target, now + duration);
   }
 
   private startGeneratedMusic(mode: MusicMode): boolean {

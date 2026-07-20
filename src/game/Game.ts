@@ -1317,7 +1317,7 @@ export class Game {
     player.vy = 0;
     this.cinemaBars.classList.add("is-visible");
     this.setSkillName("GMK", ULTIMATE_DURATION + 0.15);
-    this.audio.sfx("ultimate");
+    this.audio.sfx("cutinGmk");
   }
 
   private updateUltimate(delta: number): void {
@@ -1328,6 +1328,7 @@ export class Game {
       this.hitStop = 0.13;
       this.shake = 7 * this.shakeScale;
       this.whiteFlash = this.flashes ? 1 : 0.16;
+      this.audio.sfx("ultimateImpact");
       for (const enemy of this.enemies) {
         if (!enemy.active || enemy.state === "dead" || Math.abs(enemy.x - player.x) > 330) continue;
         this.damageEnemy(enemy, enemy.kind === "boss" ? 96 : 120, 100, player.facing * 190, true, "ultimate");
@@ -1447,7 +1448,7 @@ export class Game {
     this.input.reset();
     this.cinemaBars.classList.remove("is-visible");
     this.setSkillName("某美少女N × 某ガジェオタG", 0.42);
-    this.audio.sfx("cutin");
+    this.audio.sfx("cutinOpen");
   }
 
   private supportCinematicTargets(limit = Number.POSITIVE_INFINITY): Enemy[] {
@@ -1502,7 +1503,7 @@ export class Game {
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.manifestImpactEnd && (this.supportCinematicEvents & 4) === 0) {
       this.supportCinematicEvents |= 4;
       this.setSkillName("立つ鳥うんこブリブリ", 0.72);
-      this.audio.sfx("cutin");
+      this.audio.sfx("cutinSupport");
       this.announce("某ガジェオタG、必殺技「立つ鳥うんこブリブリ」発動");
     }
 
@@ -1521,21 +1522,21 @@ export class Game {
       }
       this.shake = Math.max(this.shake, 3.6 * this.shakeScale);
       this.whiteFlash = this.flashes ? 0.28 : 0.06;
-      this.audio.sfx("gadgetImpact");
+      this.audio.sfx("supportImpact");
     }
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.helperStrikeEnd && (this.supportCinematicEvents & 16) === 0) {
       this.supportCinematicEvents |= 16;
       this.player.attackKind = "ultimate";
       this.setSkillName("GMK", 1.85);
-      this.audio.sfx("cutin");
+      this.audio.sfx("cutinGmk");
       this.announce("某美少女N、GMK発動");
     }
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.combinedRushEnd && (this.supportCinematicEvents & 32) === 0) {
       this.supportCinematicEvents |= 32;
       this.setSkillName("GMK × 立つ鳥うんこブリブリ", 0.86);
-      this.audio.sfx("select");
+      this.audio.sfx("cutinLinked");
       this.announce("GMKと立つ鳥うんこブリブリが連動");
     }
 
@@ -1929,7 +1930,7 @@ export class Game {
       this.whiteFlash = this.flashes ? 0.55 : 0.1;
       this.shake = 5 * this.shakeScale;
       this.setSkillName("緋月契・第二相", 1.3);
-      this.audio.sfx("boss");
+      this.audio.sfx("bossPhase");
       this.spawnBurst(enemy.x + enemy.w / 2, enemy.y + 20, "#d7475e", 42, "paper");
       return;
     }
@@ -2104,7 +2105,7 @@ export class Game {
     this.hitStop = Math.max(this.hitStop, critical ? 0.082 : 0.043);
     this.shake = Math.max(this.shake, (critical ? 4.2 : 2) * this.shakeScale);
     this.whiteFlash = this.flashes ? Math.max(this.whiteFlash, critical ? 0.27 : 0.09) : 0;
-    this.audio.sfx(enemy.hp <= 0 ? "kill" : "hit");
+    if (source !== "ultimate") this.audio.sfx(enemy.hp <= 0 ? "kill" : "hit");
     if (source === "player") this.chargeUltimate();
 
     if (enemy.hp <= 0) {

@@ -1,12 +1,12 @@
 # 音響素材
 
-2026年7月20日にElevenLabsの効果音生成APIと音楽生成APIで制作した、ゲーム専用の音響素材です。全29音源を実際の操作・戦闘・演出へ割り当てています。
+2026年7月20日〜21日にElevenLabsの効果音生成APIと音楽生成APIで制作した、ゲーム専用の音響素材です。全36音源を実際の操作・戦闘・演出へ割り当てています。
 
 ## BGM・環境音
 
 - `music/explore.mp3`: 探索・物語
 - `music/combat.mp3`: 通常戦闘
-- `music/boss.mp3`: ボス戦
+- `music/boss.mp3`: ボス戦専用の48秒楽曲を循環用に整音したもの
 - `music/victory.mp3`: ボス撃破後
 - `sfx/rain-loop.mp3`: 雨の街の環境音
 
@@ -38,8 +38,14 @@
 - `sfx/gadget-throw.mp3`: ガジェット投擲
 - `sfx/gadget-impact.mp3`: ガジェット命中
 - `sfx/cutin-kin.mp3`: カットインの二連「キン・キン」
+- `sfx/cutin-open.mp3`: 合体奥義の開始カットイン
+- `sfx/cutin-support.mp3`: 某ガジェオタGの奥義カットイン
+- `sfx/cutin-gmk.mp3`: GMKの奥義カットイン
+- `sfx/cutin-linked.mp3`: 合体技成立時の最高潮カットイン
 - `sfx/ultimate.mp3`: GMK
-- `sfx/linked-finisher.mp3`: 合体技の最終打
+- `sfx/ultimate-impact.mp3`: 奥義命中時の爆発・衝撃
+- `sfx/linked-finisher.mp3`: 合体技の最終打となる最大衝撃
+- `sfx/boss-phase-shift.mp3`: ボス第二相への移行
 - `sfx/victory-stinger.mp3`: 勝利演出
 
 ## 画面操作
@@ -47,3 +53,4 @@
 - `sfx/ui-select.mp3`: 決定・選択
 
 生成時に使用したAPIキーは、このリポジトリやVercelの環境変数には保存していません。
+追加のボス戦音源は `scripts/generate-boss-audio.mjs` で再生成できます。実行時だけ `ELEVENLABS_API_KEY` を環境変数として渡してください。
