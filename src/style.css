@@ -473,13 +473,27 @@ h1 em {
 
 .controls-strip {
   display: flex;
-  gap: clamp(12px, 2vw, 30px);
+  justify-content: space-between;
+  gap: clamp(6px, 1vw, 16px);
   width: min(100%, 1280px);
   margin: 0;
   color: rgba(246, 234, 213, 0.48);
   font-family: var(--sans);
   font-size: 9px;
   letter-spacing: 0.06em;
+}
+
+.controls-strip > span {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.controls-strip kbd {
+  min-width: 17px;
+  padding: 0 3px;
+  margin: 0 1px;
 }
 
 kbd {

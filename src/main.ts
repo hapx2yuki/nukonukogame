@@ -64,30 +64,41 @@ interface BindingCapture {
 
 let bindingCapture: BindingCapture | null = null;
 
-function appendPrompt(container: HTMLElement, labels: string[], suffix: string): void {
+function bindingLabels(bindings: ReturnType<Game["getBindings"]>, action: BindableAction): string[] {
+  return bindings[action]
+    .filter((code): code is string => Boolean(code))
+    .map(bindingLabel);
+}
+
+function appendPrompt(container: HTMLElement, groups: string[][], suffix: string): void {
   container.replaceChildren();
-  labels.forEach((label) => {
-    const key = document.createElement("kbd");
-    key.textContent = label;
-    container.append(key);
+  groups.forEach((labels, groupIndex) => {
+    labels.forEach((label, labelIndex) => {
+      if (labelIndex > 0) container.append(document.createTextNode(" / "));
+      const key = document.createElement("kbd");
+      key.textContent = label;
+      container.append(key);
+    });
+    if (groupIndex < groups.length - 1) container.append(document.createTextNode(" ＋ "));
   });
   container.append(document.createTextNode(` ${suffix}`));
 }
 
 function syncControlPrompts(): void {
   const bindings = game.getBindings();
-  const primary = (action: BindableAction) => bindingLabel(bindings[action][0] ?? bindings[action][1]);
   document.querySelectorAll<HTMLElement>("[data-key-for]").forEach((key) => {
     const action = key.dataset.keyFor as BindableAction | undefined;
-    if (action && BINDABLE_ACTIONS.includes(action)) key.textContent = primary(action);
+    if (action && BINDABLE_ACTIONS.includes(action)) {
+      key.textContent = bindingLabels(bindings, action).join(" / ");
+    }
   });
   document.querySelectorAll<HTMLElement>("[data-prompt-action]").forEach((prompt) => {
     const action = prompt.dataset.promptAction;
     if (action === "move") {
-      appendPrompt(prompt, [primary("left"), primary("right")], "移動");
+      appendPrompt(prompt, [bindingLabels(bindings, "left"), bindingLabels(bindings, "right")], "移動");
     } else if (action && BINDABLE_ACTIONS.includes(action as BindableAction)) {
       const bindable = action as BindableAction;
-      appendPrompt(prompt, [primary(bindable)], ACTION_LABELS[bindable]);
+      appendPrompt(prompt, [bindingLabels(bindings, bindable)], ACTION_LABELS[bindable]);
     }
   });
 }

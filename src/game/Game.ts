@@ -1,6 +1,7 @@
 import { AudioEngine } from "./AudioEngine";
 import {
   Input,
+  bindingLabel,
   type BindableAction,
   type BindingChangeResult,
   type BindingMap,
@@ -4097,12 +4098,16 @@ export class Game {
 
   private drawTutorialPrompts(context: CanvasRenderingContext2D): void {
     if (this.state !== "playing" || this.bossTriggered) return;
+    const bindings = this.input.getBindings();
+    const primary = (action: BindableAction): string => (
+      bindingLabel(bindings[action][0] ?? bindings[action][1])
+    );
     const prompts: Array<{ x: number; label: string; keys: string }> = [
-      { x: 220, label: "影の街を進む", keys: "A  D" },
-      { x: 510, label: "二段跳び", keys: "SPACE ×2" },
-      { x: 710, label: "三段斬り", keys: "J  J  J" },
-      { x: 980, label: "攻撃直前に影走り", keys: "L" },
-      { x: 1260, label: "護符は敵を引き寄せる", keys: "K" },
+      { x: 220, label: "影の街を進む", keys: `${primary("left")}  ${primary("right")}` },
+      { x: 510, label: "二段跳び", keys: `${primary("jump")} ×2` },
+      { x: 710, label: "三段斬り", keys: `${primary("attack")} ×3` },
+      { x: 980, label: "攻撃直前に影走り", keys: primary("dash") },
+      { x: 1260, label: "護符は敵を引き寄せる", keys: primary("charm") },
     ];
     context.save();
     context.textAlign = "center";
