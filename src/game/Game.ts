@@ -401,6 +401,8 @@ export class Game {
   private supportCinematicTimer = 0;
   private supportCinematicEvents = 0;
   private supportCaptureTime: number | null = null;
+  private readonly cleanSupportCapture =
+    new URLSearchParams(window.location.search).get("capture") === "clean";
   private midStoryTriggered = false;
   private bossTriggered = false;
   private bossDefeated = false;
@@ -2395,6 +2397,15 @@ export class Game {
     context.save();
     context.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     context.imageSmoothingEnabled = false;
+
+    if (this.cleanSupportCapture && this.state === "supportCinematic") {
+      context.fillStyle = "#02060a";
+      context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+      this.drawSupportComboOverlay(context);
+      context.restore();
+      return;
+    }
+
     this.drawBackground(context);
 
     const shakeX = this.shake > 0 ? (seeded(this.elapsed * 321) - 0.5) * this.shake * 2 : 0;
@@ -4024,6 +4035,33 @@ export class Game {
       );
       context.restore();
     };
+    const drawSupportUltimatePlate = (
+      alpha: number,
+      offsetX = 0,
+      zoom = 1,
+    ): void => {
+      if (!imageReady(this.helperCutin)) return;
+      const sourceY = 70;
+      const sourceHeight = Math.min(930, this.helperCutin.naturalHeight - sourceY);
+      const height = 236 * zoom;
+      const width = height * (this.helperCutin.naturalWidth / sourceHeight);
+      context.save();
+      context.globalAlpha = alpha;
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(
+        this.helperCutin,
+        0,
+        sourceY,
+        this.helperCutin.naturalWidth,
+        sourceHeight,
+        -4 + offsetX,
+        17 - (height - 236) * 0.5,
+        width,
+        height,
+      );
+      context.restore();
+    };
     const drawGadget = (
       frame: number,
       x: number,
@@ -4060,22 +4098,6 @@ export class Game {
       }
       context.restore();
     };
-    const drawJapaneseTechnique = (x: number, y: number, align: CanvasTextAlign, size = 22): void => {
-      context.save();
-      context.textAlign = align;
-      context.textBaseline = "alphabetic";
-      context.font = `900 ${size}px "Hiragino Mincho ProN", "Yu Mincho", serif`;
-      context.lineWidth = 4.5;
-      context.strokeStyle = "rgba(2, 5, 10, 0.94)";
-      context.strokeText("立つ鳥うんこブリブリ", x, y);
-      context.fillStyle = "#fff1c8";
-      context.fillText("立つ鳥うんこブリブリ", x, y);
-      context.lineWidth = 1;
-      context.strokeStyle = "rgba(116, 228, 223, 0.82)";
-      context.strokeText("立つ鳥うんこブリブリ", x, y);
-      context.restore();
-    };
-
     const primaryTarget = this.supportCinematicTargets(1)[0];
     const targetX = primaryTarget
       ? clamp(primaryTarget.x - this.cameraX + primaryTarget.w / 2, 314, 404)
@@ -4293,7 +4315,7 @@ export class Game {
       context.fillStyle = "#fff0bf";
       context.fillText("SEGA 16-BIT  ×  FAMICOM  ×  EVEN G2  ×  MAC MINI", VIEW_WIDTH / 2, 244);
     } else if (elapsed < SUPPORT_CINEMATIC_BEATS.helperUltimateEnd) {
-      // Reference beat 5: the support ultimate card reverses the previous card.
+      // Reference beat 5: mirror the GMK card with one dominant name and one hero image.
       const phase = (elapsed - SUPPORT_CINEMATIC_BEATS.manifestImpactEnd)
         / (SUPPORT_CINEMATIC_BEATS.helperUltimateEnd - SUPPORT_CINEMATIC_BEATS.manifestImpactEnd);
       const reveal = easeOut(phase * 6.2);
@@ -4303,45 +4325,71 @@ export class Game {
       context.fillRect(0, 15, VIEW_WIDTH, 240);
       context.save();
       context.beginPath();
-      context.moveTo(-24 - exit * 148, 18);
-      context.lineTo(382 - exit * 30, 18);
-      context.lineTo(430 - exit * 72, 252);
-      context.lineTo(-18 - exit * 164, 252);
+      context.moveTo(-24 - exit * 116, 24);
+      context.lineTo(496 - exit * 48, 13);
+      context.lineTo(480 - exit * 82, 247);
+      context.lineTo(-18 - exit * 132, 257);
       context.closePath();
       context.clip();
-      drawPlate(this.helperCutin, alpha, -48 - (1 - reveal) * 116, 1.15);
+      drawSupportUltimatePlate(
+        0.98 * alpha,
+        -(1 - reveal) * 72 + phase * 2,
+        1 + phase * 0.012,
+      );
       context.restore();
-      const ink = context.createLinearGradient(142, 0, VIEW_WIDTH, 0);
-      ink.addColorStop(0, "rgba(1, 5, 9, 0)");
-      ink.addColorStop(0.48, "rgba(1, 5, 9, 0.5)");
-      ink.addColorStop(1, "rgba(1, 4, 8, 0.97)");
+
+      const ink = context.createLinearGradient(118, 0, VIEW_WIDTH, 0);
+      ink.addColorStop(0, "rgba(2, 5, 9, 0)");
+      ink.addColorStop(0.42, "rgba(2, 5, 9, 0.36)");
+      ink.addColorStop(0.72, "rgba(2, 5, 9, 0.84)");
+      ink.addColorStop(1, "rgba(1, 4, 8, 0.98)");
       context.fillStyle = ink;
-      context.fillRect(120, 16, 360, 238);
+      context.fillRect(96, 16, 384, 238);
       context.globalAlpha = alpha;
-      context.strokeStyle = "#74e4df";
-      context.lineWidth = 1.4;
-      context.beginPath();
-      context.moveTo(36, 28);
-      context.lineTo(480, 39);
-      context.moveTo(0, 251);
-      context.lineTo(404, 238);
-      context.stroke();
-      context.textAlign = "right";
-      context.font = "italic 800 10px Georgia, serif";
-      context.fillStyle = "#ffcc69";
-      context.fillText("SUPPORT ULTIMATE", 458, 132);
-      drawJapaneseTechnique(459, 166, "right", 21);
-      context.font = "bold 6px monospace";
-      context.fillStyle = "#74e4df";
-      context.fillText("FIRST STRIKE // GADGET LIMIT BREAK", 458, 185);
-      context.fillStyle = "rgba(255, 241, 207, 0.75)";
-      context.fillText("某ガジェオタG — ALL DEVICES, ONE TARGET", 458, 201);
       context.strokeStyle = "#ffcf67";
-      context.lineWidth = 1.6;
+      context.lineWidth = 1.25;
       context.beginPath();
-      context.moveTo(194, 211);
-      context.lineTo(468, 201);
+      context.moveTo(0, 29);
+      context.lineTo(424, 18);
+      context.moveTo(20, 251);
+      context.lineTo(480, 237);
       context.stroke();
+      context.strokeStyle = "rgba(103, 226, 218, 0.82)";
+      context.beginPath();
+      context.moveTo(54, 36);
+      context.lineTo(480, 25);
+      context.moveTo(0, 245);
+      context.lineTo(382, 234);
+      context.stroke();
+
+      context.textAlign = "right";
+      context.textBaseline = "alphabetic";
+      context.font = "italic 800 9px Georgia, serif";
+      context.fillStyle = "#74e4df";
+      context.fillText("SUPPORT ULTIMATE", 458, 139);
+
+      context.save();
+      context.translate(460, 0);
+      context.scale(0.78, 1);
+      context.textAlign = "right";
+      context.font = "900 34px \"Hiragino Mincho ProN\", \"Yu Mincho\", serif";
+      context.lineWidth = 5;
+      context.strokeStyle = "rgba(2, 5, 10, 0.96)";
+      context.strokeText("立つ鳥うんこブリブリ", 0, 184);
+      context.fillStyle = "#fff1c8";
+      context.fillText("立つ鳥うんこブリブリ", 0, 184);
+      context.lineWidth = 1;
+      context.strokeStyle = "rgba(116, 228, 223, 0.78)";
+      context.strokeText("立つ鳥うんこブリブリ", 0, 184);
+      context.restore();
+
+      context.textAlign = "right";
+      context.font = "700 8px \"Hiragino Mincho ProN\", \"Yu Mincho\", serif";
+      context.fillStyle = "#ffca61";
+      context.fillText("某ガジェオタG", 458, 207);
+      context.font = "6px monospace";
+      context.fillStyle = "rgba(255, 241, 207, 0.75)";
+      context.fillText("SUPPORT CUT-IN", 458, 221);
     } else if (elapsed < SUPPORT_CINEMATIC_BEATS.helperStrikeEnd) {
       // Reference beat 6: support's first strike lands before the GMK card.
       const phase = (elapsed - SUPPORT_CINEMATIC_BEATS.helperUltimateEnd)
