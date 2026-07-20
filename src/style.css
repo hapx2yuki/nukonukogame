@@ -596,7 +596,8 @@ kbd {
 
 .overlay-panel h2,
 .results-panel h2,
-.howto-dialog h2 {
+.howto-dialog h2,
+.keybind-dialog h2 {
   margin: 0 0 8px;
   color: var(--paper);
   font-size: clamp(22px, 3.4vw, 38px);
@@ -612,7 +613,8 @@ kbd {
 
 .overlay-panel .panel-kicker,
 .results-panel .panel-kicker,
-.howto-dialog .panel-kicker {
+.howto-dialog .panel-kicker,
+.keybind-dialog .panel-kicker {
   justify-content: center;
   margin-bottom: 8px;
   color: var(--gold);
@@ -1118,12 +1120,14 @@ kbd {
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.82);
 }
 
-.howto-dialog::backdrop {
+.howto-dialog::backdrop,
+.keybind-dialog::backdrop {
   background: rgba(3, 2, 5, 0.78);
   backdrop-filter: blur(8px);
 }
 
-.howto-dialog form {
+.howto-dialog form,
+.keybind-dialog form {
   position: relative;
   padding: clamp(25px, 5vw, 52px);
   text-align: center;
@@ -1168,6 +1172,150 @@ kbd {
 .howto-list strong { color: var(--gold-hot); font-size: 16px; letter-spacing: 0.1em; }
 .howto-list p { margin: 13px 0 0; color: var(--paper-dim); font-size: 10px; line-height: 1.8; }
 .howto-note { margin: 0 0 22px; color: rgba(246, 234, 213, 0.45); font-family: var(--sans); font-size: 8px; }
+
+.keybind-dialog {
+  width: min(94vw, 820px);
+  max-height: min(88dvh, 760px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 198, 94, 0.5);
+  background:
+    linear-gradient(145deg, rgba(39, 23, 42, 0.99), rgba(8, 6, 12, 0.99) 72%),
+    #09070e;
+  color: var(--paper);
+  box-shadow: 0 30px 110px rgba(0, 0, 0, 0.88), inset 0 0 90px rgba(121, 216, 208, 0.035);
+}
+
+.keybind-dialog form {
+  display: flex;
+  max-height: min(88dvh, 760px);
+  flex-direction: column;
+  padding: clamp(24px, 4vw, 42px);
+}
+
+.keybind-dialog h2 {
+  margin-bottom: 5px;
+  text-align: center;
+}
+
+.keybind-description {
+  margin: 0 0 16px;
+  color: var(--paper-dim);
+  font-family: var(--sans);
+  font-size: 10px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.keybind-column-labels,
+.keybind-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.2fr) repeat(2, minmax(128px, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.keybind-column-labels {
+  padding: 0 12px 7px;
+  color: rgba(246, 234, 213, 0.38);
+  font-family: var(--sans);
+  font-size: 8px;
+  letter-spacing: 0.13em;
+  text-align: center;
+}
+
+.keybind-column-labels span:first-child {
+  text-align: left;
+}
+
+.keybind-list {
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid rgba(255, 198, 94, 0.24);
+  border-bottom: 1px solid rgba(255, 198, 94, 0.24);
+  scrollbar-color: rgba(255, 189, 69, 0.48) rgba(5, 4, 9, 0.36);
+}
+
+.keybind-row {
+  min-height: 48px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
+  background: linear-gradient(90deg, rgba(255, 189, 69, 0.035), transparent 44%);
+}
+
+.keybind-row:last-child {
+  border-bottom: 0;
+}
+
+.keybind-row strong {
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.keybind-binding {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 198, 94, 0.3);
+  background: rgba(5, 4, 9, 0.66);
+  cursor: pointer;
+  color: var(--gold-hot);
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.keybind-binding:hover,
+.keybind-binding:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--gold-hot);
+  background: rgba(84, 42, 28, 0.46);
+  box-shadow: 0 0 18px rgba(255, 189, 69, 0.1);
+}
+
+.keybind-binding.is-listening {
+  border-color: var(--teal);
+  background: rgba(30, 86, 88, 0.34);
+  color: #c8fffa;
+  box-shadow: 0 0 0 2px rgba(121, 216, 208, 0.12), 0 0 24px rgba(121, 216, 208, 0.16);
+  animation: binding-listen 650ms ease-in-out infinite alternate;
+}
+
+@keyframes binding-listen {
+  from { filter: brightness(0.9); }
+  to { filter: brightness(1.22); }
+}
+
+.keybind-status {
+  min-height: 32px;
+  margin: 10px 0 5px;
+  color: rgba(246, 234, 213, 0.55);
+  font-family: var(--sans);
+  font-size: 9px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.keybind-dialog.is-capturing .keybind-status {
+  color: var(--teal);
+}
+
+.keybind-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+
+.keybind-actions .primary-button {
+  min-width: 180px;
+}
+
+.keybind-actions .quiet-button {
+  white-space: nowrap;
+}
 
 .rotate-hint {
   display: none;
@@ -1270,6 +1418,10 @@ kbd {
   }
 
   #sound-button {
+    display: none;
+  }
+
+  #keybind-game-button {
     display: none;
   }
 
@@ -1380,6 +1532,14 @@ kbd {
   .result-stats > div:nth-child(4) { border-top: 1px solid rgba(255, 198, 94, 0.18); }
   .howto-list { grid-template-columns: 1fr; max-height: 52vh; overflow: auto; }
   .howto-list > div { min-height: 110px; }
+  .keybind-column-labels,
+  .keybind-row {
+    grid-template-columns: minmax(96px, 1.05fr) repeat(2, minmax(82px, 1fr));
+    gap: 6px;
+  }
+  .keybind-row { padding-right: 6px; padding-left: 6px; }
+  .keybind-column-labels { padding-right: 6px; padding-left: 6px; }
+  .keybind-row strong { font-size: 11px; }
 }
 
 @media
@@ -1431,6 +1591,14 @@ kbd {
   .howto-dialog form { padding: 18px 24px; }
   .howto-list { grid-template-columns: repeat(3, 1fr); max-height: none; margin: 12px 0; overflow: visible; }
   .howto-list > div { min-height: 114px; padding: 21px 11px 10px; }
+  .keybind-dialog form { padding: 14px 20px; }
+  .keybind-dialog .panel-kicker { display: none; }
+  .keybind-dialog h2 { font-size: 21px; }
+  .keybind-description { margin-bottom: 7px; font-size: 8px; }
+  .keybind-column-labels { padding-bottom: 4px; }
+  .keybind-row { min-height: 39px; padding-top: 3px; padding-bottom: 3px; }
+  .keybind-status { min-height: 24px; margin: 5px 0 2px; font-size: 8px; }
+  .keybind-actions .primary-button { min-width: 150px; padding: 8px 14px; }
 }
 
 @media

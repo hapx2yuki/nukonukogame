@@ -1,26 +1,135 @@
 export type Action = "left" | "right" | "down" | "jump" | "attack" | "charm" | "dash" | "ultimate" | "pause" | "confirm";
 
-const KEY_BINDINGS: Record<string, Action> = {
-  ArrowLeft: "left",
-  KeyA: "left",
-  ArrowRight: "right",
-  KeyD: "right",
-  ArrowDown: "down",
-  KeyS: "down",
-  Space: "jump",
-  KeyJ: "attack",
-  KeyZ: "attack",
-  KeyK: "charm",
-  KeyX: "charm",
-  KeyL: "dash",
-  KeyC: "dash",
-  KeyE: "ultimate",
-  KeyV: "ultimate",
+export const BINDABLE_ACTIONS = [
+  "left",
+  "right",
+  "down",
+  "jump",
+  "attack",
+  "charm",
+  "dash",
+  "ultimate",
+] as const;
+
+export type BindableAction = (typeof BINDABLE_ACTIONS)[number];
+export type BindingSlots = [string | null, string | null];
+export type BindingMap = Record<BindableAction, BindingSlots>;
+
+export interface BindingChangeResult {
+  ok: boolean;
+  swappedAction?: BindableAction;
+  message?: string;
+}
+
+export const ACTION_LABELS: Record<BindableAction, string> = {
+  left: "左へ移動",
+  right: "右へ移動",
+  down: "しゃがむ・急降下",
+  jump: "跳ぶ",
+  attack: "斬撃",
+  charm: "護符",
+  dash: "影走り",
+  ultimate: "GMK",
+};
+
+export const DEFAULT_BINDINGS: BindingMap = {
+  left: ["KeyA", "ArrowLeft"],
+  right: ["KeyD", "ArrowRight"],
+  down: ["KeyS", "ArrowDown"],
+  jump: ["Space", "KeyW"],
+  attack: ["Mouse0", "KeyJ"],
+  charm: ["KeyE", "KeyK"],
+  dash: ["KeyC", "KeyL"],
+  ultimate: ["KeyQ", "KeyV"],
+};
+
+const FIXED_KEY_BINDINGS: Record<string, Action> = {
   Escape: "pause",
   Enter: "confirm",
 };
 
+const RESERVED_BINDINGS = new Set(["Escape", "Enter", "Tab", "F5", "F11", "MetaLeft", "MetaRight"]);
+const STORAGE_KEY = "bishoujo-n-keybindings-v1";
 const STICK_DEADZONE = 0.16;
+
+function cloneBindings(bindings: BindingMap): BindingMap {
+  return Object.fromEntries(
+    BINDABLE_ACTIONS.map((action) => [action, [...bindings[action]] as BindingSlots]),
+  ) as BindingMap;
+}
+
+function isBindingCode(value: unknown): value is string {
+  return typeof value === "string" && /^(?:Key[A-Z]|Digit[0-9]|Arrow(?:Left|Right|Up|Down)|Mouse[0-4]|Space|(?:Shift|Control|Alt)(?:Left|Right)|Backquote|Minus|Equal|BracketLeft|BracketRight|Backslash|Semicolon|Quote|Comma|Period|Slash|Numpad[0-9]|NumpadAdd|NumpadSubtract|NumpadMultiply|NumpadDivide)$/.test(value);
+}
+
+function loadBindings(): BindingMap {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "") as Partial<Record<BindableAction, unknown>>;
+    const loaded = cloneBindings(DEFAULT_BINDINGS);
+    const used = new Set<string>();
+
+    for (const action of BINDABLE_ACTIONS) {
+      const slots = parsed[action];
+      if (!Array.isArray(slots)) continue;
+      const validated = slots
+        .slice(0, 2)
+        .map((code) => isBindingCode(code) && !RESERVED_BINDINGS.has(code) ? code : null) as BindingSlots;
+      while (validated.length < 2) validated.push(null);
+      const unique = validated.map((code) => {
+        if (!code || used.has(code)) return null;
+        used.add(code);
+        return code;
+      }) as BindingSlots;
+      if (unique.some(Boolean)) loaded[action] = unique;
+    }
+
+    return loaded;
+  } catch {
+    return cloneBindings(DEFAULT_BINDINGS);
+  }
+}
+
+export function bindingLabel(code: string | null): string {
+  if (!code) return "未設定";
+  const named: Record<string, string> = {
+    Space: "Space",
+    ArrowLeft: "←",
+    ArrowRight: "→",
+    ArrowUp: "↑",
+    ArrowDown: "↓",
+    Mouse0: "左クリック",
+    Mouse1: "中クリック",
+    Mouse2: "右クリック",
+    Mouse3: "マウス戻る",
+    Mouse4: "マウス進む",
+    ShiftLeft: "左Shift",
+    ShiftRight: "右Shift",
+    ControlLeft: "左Ctrl",
+    ControlRight: "右Ctrl",
+    AltLeft: "左Alt",
+    AltRight: "右Alt",
+    Backquote: "`",
+    Minus: "-",
+    Equal: "=",
+    BracketLeft: "[",
+    BracketRight: "]",
+    Backslash: "\\",
+    Semicolon: ";",
+    Quote: "'",
+    Comma: ",",
+    Period: ".",
+    Slash: "/",
+    NumpadAdd: "テンキー +",
+    NumpadSubtract: "テンキー -",
+    NumpadMultiply: "テンキー ×",
+    NumpadDivide: "テンキー ÷",
+  };
+  if (named[code]) return named[code];
+  if (code.startsWith("Key")) return code.slice(3);
+  if (code.startsWith("Digit")) return code.slice(5);
+  if (code.startsWith("Numpad")) return `テンキー ${code.slice(6)}`;
+  return code;
+}
 
 function normalizeAxis(value: number, deadzone = STICK_DEADZONE): number {
   const magnitude = Math.abs(value);
@@ -30,12 +139,16 @@ function normalizeAxis(value: number, deadzone = STICK_DEADZONE): number {
 
 export class Input {
   private keyboardHeld = new Set<Action>();
+  private mouseHeld = new Set<Action>();
   private touchHeld = new Set<Action>();
   private pressed = new Set<Action>();
   private gamepadHeld = new Set<Action>();
   private gamepadSuppressed = new Set<Action>();
+  private bindings = loadBindings();
+  private suspended = false;
   private touchElements: HTMLElement[] = [];
   private activeTouchPointers = new Map<number, { action: Action; element: HTMLElement }>();
+  private activeMouseButtons = new Map<number, Action>();
   private touchCleanup: Array<() => void> = [];
   private moveStick: HTMLElement | null = null;
   private moveStickPointer: number | null = null;
@@ -44,43 +157,109 @@ export class Input {
   private gamepadMoveX = 0;
   private onKeyDownBound = (event: KeyboardEvent) => this.onKeyDown(event);
   private onKeyUpBound = (event: KeyboardEvent) => this.onKeyUp(event);
+  private onCanvasPointerDownBound = (event: PointerEvent) => this.onCanvasPointerDown(event);
   private onBlurBound = () => this.reset();
   private onPageHideBound = () => this.reset();
-  private onGlobalPointerEndBound = (event: PointerEvent) => this.releasePointer(event.pointerId);
+  private onGlobalPointerEndBound = (event: PointerEvent) => this.releasePointer(event);
 
-  constructor() {
+  constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", this.onKeyDownBound, { passive: false });
     window.addEventListener("keyup", this.onKeyUpBound, { passive: false });
     window.addEventListener("blur", this.onBlurBound);
     window.addEventListener("pagehide", this.onPageHideBound);
     window.addEventListener("pointerup", this.onGlobalPointerEndBound, true);
     window.addEventListener("pointercancel", this.onGlobalPointerEndBound, true);
+    canvas.addEventListener("pointerdown", this.onCanvasPointerDownBound, { passive: false });
     this.bindTouchControls();
     this.bindMoveStick();
   }
 
+  getBindings(): BindingMap {
+    return cloneBindings(this.bindings);
+  }
+
+  setBinding(action: BindableAction, slot: number, code: string): BindingChangeResult {
+    if (!BINDABLE_ACTIONS.includes(action) || (slot !== 0 && slot !== 1) || !isBindingCode(code)) {
+      return { ok: false, message: "この入力は割り当てられません" };
+    }
+    if (RESERVED_BINDINGS.has(code)) {
+      return { ok: false, message: "このキーは画面操作用に予約されています" };
+    }
+
+    const next = cloneBindings(this.bindings);
+    const currentCode = next[action][slot];
+    let swappedAction: BindableAction | undefined;
+
+    for (const otherAction of BINDABLE_ACTIONS) {
+      for (let otherSlot = 0; otherSlot < 2; otherSlot += 1) {
+        if (otherAction === action && otherSlot === slot) continue;
+        if (next[otherAction][otherSlot] !== code) continue;
+        if (!currentCode && !next[otherAction][otherSlot === 0 ? 1 : 0]) {
+          return { ok: false, message: `${ACTION_LABELS[otherAction]}の唯一の入力は移動できません` };
+        }
+        next[otherAction][otherSlot] = currentCode;
+        swappedAction = otherAction;
+      }
+    }
+
+    next[action][slot] = code;
+    this.bindings = next;
+    this.persistBindings();
+    this.reset();
+    return { ok: true, swappedAction };
+  }
+
+  clearBinding(action: BindableAction, slot: number): BindingChangeResult {
+    if (!BINDABLE_ACTIONS.includes(action) || (slot !== 0 && slot !== 1)) {
+      return { ok: false, message: "この割り当ては変更できません" };
+    }
+    const otherSlot = slot === 0 ? 1 : 0;
+    if (!this.bindings[action][otherSlot]) {
+      return { ok: false, message: "各操作には最低1つの入力が必要です" };
+    }
+    this.bindings[action][slot] = null;
+    this.persistBindings();
+    this.reset();
+    return { ok: true };
+  }
+
+  resetBindings(): void {
+    this.bindings = cloneBindings(DEFAULT_BINDINGS);
+    this.persistBindings();
+    this.reset();
+  }
+
+  setSuspended(suspended: boolean): void {
+    if (this.suspended === suspended) return;
+    this.suspended = suspended;
+    this.reset();
+  }
+
   down(action: Action): boolean {
+    if (this.suspended) return false;
     if (action === "left" && (this.touchMoveX < -STICK_DEADZONE || this.gamepadMoveX < -STICK_DEADZONE)) return true;
     if (action === "right" && (this.touchMoveX > STICK_DEADZONE || this.gamepadMoveX > STICK_DEADZONE)) return true;
     if (action === "down" && this.stickDown) return true;
-    return this.keyboardHeld.has(action) || this.touchHeld.has(action) || this.gamepadHeld.has(action);
+    return this.keyboardHeld.has(action) || this.mouseHeld.has(action) || this.touchHeld.has(action) || this.gamepadHeld.has(action);
   }
 
   horizontal(): number {
+    if (this.suspended) return 0;
     const digital =
-      (this.keyboardHeld.has("right") || this.touchHeld.has("right") || this.gamepadHeld.has("right") ? 1 : 0)
-      - (this.keyboardHeld.has("left") || this.touchHeld.has("left") || this.gamepadHeld.has("left") ? 1 : 0);
+      (this.keyboardHeld.has("right") || this.mouseHeld.has("right") || this.touchHeld.has("right") || this.gamepadHeld.has("right") ? 1 : 0)
+      - (this.keyboardHeld.has("left") || this.mouseHeld.has("left") || this.touchHeld.has("left") || this.gamepadHeld.has("left") ? 1 : 0);
     if (digital !== 0) return digital;
     return Math.abs(this.touchMoveX) >= Math.abs(this.gamepadMoveX) ? this.touchMoveX : this.gamepadMoveX;
   }
 
   consume(action: Action): boolean {
-    if (!this.pressed.has(action)) return false;
+    if (this.suspended || !this.pressed.has(action)) return false;
     this.pressed.delete(action);
     return true;
   }
 
   press(action: Action): void {
+    if (this.suspended) return;
     if (!this.down(action)) this.pressed.add(action);
     this.touchHeld.add(action);
   }
@@ -90,6 +269,11 @@ export class Input {
   }
 
   pollGamepad(): void {
+    if (this.suspended) {
+      this.gamepadHeld.clear();
+      this.gamepadMoveX = 0;
+      return;
+    }
     const pad = this.connectedGamepad();
     if (!pad) {
       this.gamepadHeld.clear();
@@ -106,7 +290,7 @@ export class Input {
 
     next.forEach((action) => {
       if (this.gamepadSuppressed.has(action)) return;
-      if (!this.gamepadHeld.has(action) && !this.keyboardHeld.has(action) && !this.touchHeld.has(action)) {
+      if (!this.gamepadHeld.has(action) && !this.keyboardHeld.has(action) && !this.mouseHeld.has(action) && !this.touchHeld.has(action)) {
         this.pressed.add(action);
       }
     });
@@ -125,9 +309,11 @@ export class Input {
       this.gamepadSuppressed.clear();
     }
     this.keyboardHeld.clear();
+    this.mouseHeld.clear();
     this.touchHeld.clear();
     this.pressed.clear();
     this.gamepadHeld.clear();
+    this.activeMouseButtons.clear();
     this.gamepadMoveX = 0;
     this.touchMoveX = 0;
     this.stickDown = false;
@@ -151,23 +337,46 @@ export class Input {
     window.removeEventListener("pagehide", this.onPageHideBound);
     window.removeEventListener("pointerup", this.onGlobalPointerEndBound, true);
     window.removeEventListener("pointercancel", this.onGlobalPointerEndBound, true);
+    this.canvas.removeEventListener("pointerdown", this.onCanvasPointerDownBound);
     this.touchCleanup.forEach((cleanup) => cleanup());
     this.touchCleanup = [];
     this.reset();
   }
 
+  private persistBindings(): void {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.bindings));
+  }
+
+  private actionForCode(code: string): Action | undefined {
+    const fixed = FIXED_KEY_BINDINGS[code];
+    if (fixed) return fixed;
+    return BINDABLE_ACTIONS.find((action) => this.bindings[action].includes(code));
+  }
+
   private onKeyDown(event: KeyboardEvent): void {
-    const action = KEY_BINDINGS[event.code];
+    if (this.suspended) return;
+    const action = this.actionForCode(event.code);
     if (!action) return;
-    if (["ArrowLeft", "ArrowRight", "ArrowDown", "Space"].includes(event.code)) event.preventDefault();
+    event.preventDefault();
     if (!event.repeat && !this.down(action)) this.pressed.add(action);
     this.keyboardHeld.add(action);
   }
 
   private onKeyUp(event: KeyboardEvent): void {
-    const action = KEY_BINDINGS[event.code];
+    const action = this.actionForCode(event.code);
     if (!action) return;
     this.keyboardHeld.delete(action);
+  }
+
+  private onCanvasPointerDown(event: PointerEvent): void {
+    if (this.suspended || event.pointerType !== "mouse") return;
+    const action = this.actionForCode(`Mouse${event.button}`);
+    if (!action || action === "pause" || action === "confirm") return;
+    event.preventDefault();
+    if (!this.down(action)) this.pressed.add(action);
+    this.mouseHeld.add(action);
+    this.activeMouseButtons.set(event.button, action);
+    this.canvas.focus({ preventScroll: true });
   }
 
   private connectedGamepad(): Gamepad | undefined {
@@ -209,9 +418,14 @@ export class Input {
     }
   }
 
-  private releasePointer(pointerId: number): void {
-    this.releaseTouchPointer(pointerId);
-    if (this.moveStickPointer === pointerId) this.resetMoveStick();
+  private releasePointer(event: PointerEvent): void {
+    this.releaseTouchPointer(event.pointerId);
+    if (this.moveStickPointer === event.pointerId) this.resetMoveStick();
+    if (event.pointerType === "mouse") {
+      const action = this.activeMouseButtons.get(event.button);
+      if (action) this.mouseHeld.delete(action);
+      this.activeMouseButtons.delete(event.button);
+    }
   }
 
   private resetMoveStick(): void {
@@ -239,7 +453,7 @@ export class Input {
 
       const begin = (event: PointerEvent) => {
         event.preventDefault();
-        if (this.activeTouchPointers.has(event.pointerId)) return;
+        if (this.suspended || this.activeTouchPointers.has(event.pointerId)) return;
         try {
           element.setPointerCapture?.(event.pointerId);
         } catch {
@@ -307,7 +521,7 @@ export class Input {
 
     const begin = (event: PointerEvent) => {
       event.preventDefault();
-      if (this.moveStickPointer !== null) return;
+      if (this.suspended || this.moveStickPointer !== null) return;
       this.moveStickPointer = event.pointerId;
       stick.classList.add("is-active");
       try {

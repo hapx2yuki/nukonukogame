@@ -38,6 +38,7 @@
               <span><small>STORY 01</small>第一夜を始める</span>
             </button>
             <button id="howto-button" class="quiet-button" type="button">遊び方</button>
+            <button id="keybind-button" class="quiet-button" type="button">操作設定</button>
           </div>
           <div class="title-meta">
             <span>対応：キーボード / ゲームパッド / タッチ操作</span>
@@ -52,6 +53,7 @@
           <div class="chapter-label"><span>第一夜</span>玻璃坂の残照</div>
           <div class="topbar-actions">
             <button id="sound-button" class="icon-button" type="button" aria-label="音を切り替える" aria-pressed="false">音 ON</button>
+            <button id="keybind-game-button" class="icon-button" type="button">操作設定</button>
             <button id="fullscreen-button" class="icon-button" type="button">全画面</button>
             <button id="pause-button" class="icon-button" type="button" aria-label="一時停止">停止</button>
           </div>
@@ -104,6 +106,7 @@
                 <div class="setting-row"><span>効果音・音楽</span><button id="pause-sound" type="button">ON</button></div>
                 <div class="setting-row"><span>画面の揺れ</span><button id="shake-toggle" type="button">標準</button></div>
                 <div class="setting-row"><span>強い光の演出</span><button id="flash-toggle" type="button">標準</button></div>
+                <div class="setting-row"><span>キーボード・マウス</span><button id="pause-keybind-button" type="button">変更</button></div>
                 <button id="resume-button" class="primary-button compact" type="button">戦いへ戻る</button>
                 <button id="title-button" class="quiet-button" type="button">タイトルへ戻る</button>
               </div>
@@ -163,7 +166,12 @@
         </div>
 
         <p class="controls-strip">
-          <span><kbd>A</kbd><kbd>D</kbd> 移動</span><span><kbd>Space</kbd> 跳ぶ</span><span><kbd>J</kbd> 斬撃</span><span><kbd>K</kbd> 護符</span><span><kbd>L</kbd> 影走り</span><span><kbd>E</kbd> GMK</span>
+          <span data-prompt-action="move"></span>
+          <span data-prompt-action="jump"></span>
+          <span data-prompt-action="attack"></span>
+          <span data-prompt-action="charm"></span>
+          <span data-prompt-action="dash"></span>
+          <span data-prompt-action="ultimate"></span>
         </p>
       </section>
     </div>
@@ -174,12 +182,28 @@
         <p class="panel-kicker">HOW TO PLAY</p>
         <h2>美しく、寸前でかわす。</h2>
         <div class="howto-list">
-          <div><span>01</span><strong>斬る</strong><p><kbd>J</kbd>を続けて三段斬り。空中と急降下にも派生。</p></div>
-          <div><span>02</span><strong>影を走る</strong><p>敵の攻撃直前に<kbd>L</kbd>。時が止まる「金刻」が発生。</p></div>
-          <div><span>03</span><strong>GMK</strong><p>敵に攻撃を5回当てると発動可能。<kbd>E</kbd>で画面すべてを断つ奥義。</p></div>
+          <div><span>01</span><strong>斬る</strong><p><kbd data-key-for="attack">左クリック</kbd>を続けて三段斬り。空中と急降下にも派生。</p></div>
+          <div><span>02</span><strong>影を走る</strong><p>敵の攻撃直前に<kbd data-key-for="dash">C</kbd>。時が止まる「金刻」が発生。</p></div>
+          <div><span>03</span><strong>GMK</strong><p>敵に攻撃を5回当てると発動可能。<kbd data-key-for="ultimate">Q</kbd>で画面すべてを断つ奥義。</p></div>
         </div>
         <p class="howto-note">ゲームパッド：左スティック / A 跳ぶ / X 斬撃 / Y 護符 / B・RB 影走り / LB・LT+RT 奥義　スマホ：横向きで、左スティックを指で倒して移動、右の操作帯で攻撃</p>
         <button class="primary-button compact" value="close">わかった</button>
+      </form>
+    </dialog>
+
+    <dialog id="keybind-dialog" class="keybind-dialog" aria-labelledby="keybind-title" aria-describedby="keybind-description">
+      <form method="dialog">
+        <button class="dialog-close" value="cancel" aria-label="操作設定を閉じる">×</button>
+        <p class="panel-kicker">CONTROL CONFIGURATION</p>
+        <h2 id="keybind-title">操作設定</h2>
+        <p id="keybind-description" class="keybind-description">変更したい枠を選び、使いたいキーまたはマウスボタンを入力してください。</p>
+        <div class="keybind-column-labels" aria-hidden="true"><span>行動</span><span>主入力</span><span>副入力</span></div>
+        <div id="keybind-list" class="keybind-list"></div>
+        <p id="keybind-status" class="keybind-status" role="status" aria-live="polite">Esc・Enterなど画面操作用のキーは変更できません。</p>
+        <div class="keybind-actions">
+          <button id="reset-keybinds-button" class="quiet-button" type="button">初期配置に戻す</button>
+          <button class="primary-button compact" value="close">設定を閉じる</button>
+        </div>
       </form>
     </dialog>
 

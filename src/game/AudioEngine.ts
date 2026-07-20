@@ -15,6 +15,7 @@ export type SoundName =
   | "ultimate"
   | "victory"
   | "select"
+  | "dialogue"
   | "cutin"
   | "helper"
   | "gadgetThrow"
@@ -51,6 +52,7 @@ const GENERATED_SOUNDS: Record<SoundName, GeneratedSoundConfig> = {
   ultimate: { path: "/assets/audio/sfx/ultimate.mp3", gain: 0.72 },
   victory: { path: "/assets/audio/sfx/victory-stinger.mp3", gain: 0.76 },
   select: { path: "/assets/audio/sfx/ui-select.mp3", gain: 0.68 },
+  dialogue: { path: "/assets/audio/sfx/dialogue-tick.mp3", gain: 0.28 },
   cutin: { path: "/assets/audio/sfx/cutin-kin.mp3", gain: 0.84 },
   helper: { path: "/assets/audio/sfx/helper-entrance.mp3", gain: 0.8 },
   gadgetThrow: { path: "/assets/audio/sfx/gadget-throw.mp3", gain: 0.72 },
@@ -248,6 +250,9 @@ export class AudioEngine {
       case "select":
         this.chime([660, 990], 0.16, 0.04);
         break;
+      case "dialogue":
+        this.tone(720 + Math.random() * 110, 0.04, "square", 0.025, 540);
+        break;
     }
   }
 
@@ -292,7 +297,9 @@ export class AudioEngine {
 
     const variation = name === "attack" || name === "heavy"
       ? 0.96 + Math.random() * 0.08
-      : 1;
+      : name === "dialogue"
+        ? 0.94 + Math.random() * 0.13
+        : 1;
     this.playGeneratedBuffer(
       config.path,
       config.gain,

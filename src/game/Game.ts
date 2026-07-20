@@ -1,5 +1,10 @@
 import { AudioEngine } from "./AudioEngine";
-import { Input } from "./Input";
+import {
+  Input,
+  type BindableAction,
+  type BindingChangeResult,
+  type BindingMap,
+} from "./Input";
 
 const VIEW_WIDTH = 480;
 const VIEW_HEIGHT = 270;
@@ -431,6 +436,7 @@ export class Game {
   private dialogue: DialogueLine[] = [];
   private dialogueIndex = 0;
   private dialogueTyped = 0;
+  private dialogueSoundCursor = 0;
   private dialogueOnDone: (() => void) | null = null;
   private footstepTimer = 0;
   private player: Player = this.createPlayer();
@@ -467,7 +473,7 @@ export class Game {
     this.context.imageSmoothingEnabled = false;
     this.audio = audio;
     this.callbacks = callbacks;
-    this.input = new Input();
+    this.input = new Input(canvas);
     this.buildWorld();
     this.syncUltimateUi();
     this.storyOverlay.addEventListener("click", () => this.advanceDialogue());
@@ -577,6 +583,26 @@ export class Game {
     this.input.reset();
   }
 
+  getBindings(): BindingMap {
+    return this.input.getBindings();
+  }
+
+  setBinding(action: BindableAction, slot: number, code: string): BindingChangeResult {
+    return this.input.setBinding(action, slot, code);
+  }
+
+  clearBinding(action: BindableAction, slot: number): BindingChangeResult {
+    return this.input.clearBinding(action, slot);
+  }
+
+  resetBindings(): void {
+    this.input.resetBindings();
+  }
+
+  setInputSuspended(suspended: boolean): void {
+    this.input.setSuspended(suspended);
+  }
+
   togglePause(): void {
     if (this.state === "paused") {
       this.resume();
@@ -588,6 +614,15 @@ export class Game {
     this.input.reset();
     this.pauseOverlay.classList.add("is-visible");
     this.announce("一時停止");
+  }
+
+  pauseForSettings(): void {
+    if (this.state === "paused" || this.state === "idle" || this.state === "victory") return;
+    this.previousState = this.state;
+    this.state = "paused";
+    this.input.reset();
+    this.pauseOverlay.classList.add("is-visible");
+    this.announce("操作設定を開きました");
   }
 
   resume(): void {
@@ -2306,6 +2341,7 @@ export class Game {
     this.dialogue = lines;
     this.dialogueIndex = 0;
     this.dialogueTyped = 0;
+    this.dialogueSoundCursor = 0;
     this.dialogueOnDone = onDone;
     this.state = "story";
     this.storyOverlay.classList.add("is-visible");
@@ -2317,8 +2353,19 @@ export class Game {
     const line = this.dialogue[this.dialogueIndex];
     if (!line) return;
     this.dialogueTyped = Math.min(line.text.length, this.dialogueTyped + delta * 42);
-    this.storyText.textContent = line.text.slice(0, Math.floor(this.dialogueTyped));
-    this.storyHint.textContent = this.dialogueTyped >= line.text.length ? "決定して進む" : "";
+    const visibleCharacters = Math.floor(this.dialogueTyped);
+    this.storyText.textContent = line.text.slice(0, visibleCharacters);
+    this.storyHint.textContent = this.dialogueTyped >= line.text.length ? "クリック / Enterで進む" : "";
+    if (visibleCharacters <= this.dialogueSoundCursor) return;
+
+    const newlyVisible = line.text.slice(this.dialogueSoundCursor, visibleCharacters);
+    const readableCount = [...line.text.slice(0, visibleCharacters)]
+      .filter((character) => !/[\s、。！？…「」『』（）・—―]/u.test(character))
+      .length;
+    const hasReadableCharacter = [...newlyVisible]
+      .some((character) => !/[\s、。！？…「」『』（）・—―]/u.test(character));
+    if (hasReadableCharacter && readableCount % 3 === 1) this.audio.sfx("dialogue");
+    this.dialogueSoundCursor = visibleCharacters;
   }
 
   private advanceDialogue(): void {
@@ -2327,6 +2374,7 @@ export class Game {
     if (!line) return;
     if (this.dialogueTyped < line.text.length) {
       this.dialogueTyped = line.text.length;
+      this.dialogueSoundCursor = line.text.length;
       this.updateDialogueText();
       return;
     }
@@ -2341,6 +2389,7 @@ export class Game {
       return;
     }
     this.dialogueTyped = 0;
+    this.dialogueSoundCursor = 0;
     this.updateDialogueText();
   }
 
@@ -2349,7 +2398,7 @@ export class Game {
     if (!line) return;
     this.storySpeaker.textContent = line.speaker;
     this.storyText.textContent = line.text.slice(0, Math.floor(this.dialogueTyped));
-    this.storyHint.textContent = this.dialogueTyped >= line.text.length ? "決定して進む" : "";
+    this.storyHint.textContent = this.dialogueTyped >= line.text.length ? "クリック / Enterで進む" : "";
     this.announce(`${line.speaker}：${line.text}`);
   }
 
