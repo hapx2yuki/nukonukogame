@@ -1374,7 +1374,7 @@ export class Game {
     this.helper.stateTimer = 0.4;
     this.input.reset();
     this.cinemaBars.classList.remove("is-visible");
-    this.setSkillName("連環共鳴", 0.42);
+    this.setSkillName("某ガジェオタG × 某美少女N", 0.42);
     this.audio.sfx("ultimate");
   }
 
@@ -1410,9 +1410,8 @@ export class Game {
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.linkPulseEnd && (this.supportCinematicEvents & 1) === 0) {
       this.supportCinematicEvents |= 1;
-      this.setSkillName("電脳宝具・四機種顕現", 0.7);
       this.audio.sfx("enemyCue");
-      this.announce("某ガジェオタG、四機種顕現");
+      this.announce("某ガジェオタG、4種のガジェットで攻撃");
     }
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.helperManifestEnd && (this.supportCinematicEvents & 2) === 0) {
@@ -1456,16 +1455,16 @@ export class Game {
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.helperStrikeEnd && (this.supportCinematicEvents & 16) === 0) {
       this.supportCinematicEvents |= 16;
       this.player.attackKind = "ultimate";
-      this.setSkillName("GMK・連環", 1.85);
+      this.setSkillName("GMK", 1.85);
       this.audio.sfx("ultimate");
-      this.announce("某美少女N、GMK連動奥義");
+      this.announce("某美少女N、GMK発動");
     }
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.combinedRushEnd && (this.supportCinematicEvents & 32) === 0) {
       this.supportCinematicEvents |= 32;
-      this.setSkillName("ダブル奥義・金碧双閃", 0.86);
+      this.setSkillName("立つ鳥うんこブリブリ × GMK", 0.86);
       this.audio.sfx("select");
-      this.announce("某ガジェオタGと某美少女N、ダブル奥義");
+      this.announce("立つ鳥うんこブリブリとGMKが連動");
     }
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.linkedFinalEnd && (this.supportCinematicEvents & 64) === 0) {
@@ -1512,8 +1511,7 @@ export class Game {
       this.helper.labelTimer = 0;
       this.cinemaBars.classList.remove("is-visible");
       this.input.reset();
-      this.setSkillName("連環完遂", 0.72);
-      this.announce("某ガジェオタGと某美少女Nの連続必殺技、完遂");
+      this.announce("2つの必殺技による連携攻撃、完了");
     }
   }
 
@@ -4171,17 +4169,17 @@ export class Game {
       context.stroke();
 
       context.textAlign = "center";
-      context.font = "900 26px \"Hiragino Mincho ProN\", \"Yu Mincho\", serif";
+      context.font = "900 16px \"Hiragino Mincho ProN\", \"Yu Mincho\", serif";
       context.lineWidth = 5;
       context.strokeStyle = "rgba(2, 3, 7, 0.96)";
-      context.strokeText("連環共鳴", 243, 162);
+      context.strokeText("某ガジェオタG × 某美少女N", 243, 162);
       context.fillStyle = "#fff1cf";
-      context.fillText("連環共鳴", 243, 162);
+      context.fillText("某ガジェオタG × 某美少女N", 243, 162);
       context.font = "bold 7px monospace";
       context.fillStyle = "#74e4df";
-      context.fillText("DOUBLE ARTS / SYNCHRONIZED LINK", 243, 180);
+      context.fillText("DOUBLE CUT-IN / CO-OP ATTACK", 243, 181);
       context.fillStyle = "#ffcf69";
-      context.fillText("某ガジェオタG  ×  某美少女N", 243, 194);
+      context.fillText("SUPPORT ULTIMATE × GMK", 243, 195);
     } else if (elapsed < SUPPORT_CINEMATIC_BEATS.linkPulseEnd) {
       // Reference beat 2: a very brief live impact connects the first two cards.
       const phase = (elapsed - SUPPORT_CINEMATIC_BEATS.linkedPortraitEnd)
@@ -4248,17 +4246,15 @@ export class Game {
       context.lineTo(480, 238);
       context.stroke();
       context.textAlign = "left";
-      context.font = "900 29px \"Hiragino Mincho ProN\", \"Yu Mincho\", serif";
+      context.font = "900 20px monospace";
       context.fillStyle = "#fff0c8";
-      context.fillText("電脳宝具", 23, 146);
-      context.font = "800 12px serif";
+      context.fillText("GADGET ATTACK", 23, 151);
+      context.font = "bold 7px monospace";
       context.fillStyle = "#74e4df";
-      context.fillText("四機種顕現", 25, 166);
+      context.fillText("SEGA / FAMICOM / EVEN G2 / MAC MINI", 25, 170);
       context.font = "bold 6px monospace";
-      context.fillStyle = "#ffcc69";
-      context.fillText("DEVICE ARRAY / MANIFEST", 25, 180);
       context.fillStyle = "rgba(255, 241, 207, 0.72)";
-      context.fillText("某ガジェオタG — ROYAL GADGET CALL", 25, 195);
+      context.fillText("某ガジェオタG — 4 DEVICES / 1 TARGET", 25, 187);
     } else if (elapsed < SUPPORT_CINEMATIC_BEATS.manifestImpactEnd) {
       // Reference beat 4: live sigil. All four approved gadgets move toward one target.
       const phase = (elapsed - SUPPORT_CINEMATIC_BEATS.helperManifestEnd)
@@ -4577,21 +4573,21 @@ export class Game {
       context.textAlign = "right";
       context.font = "italic 800 10px Georgia, serif";
       context.fillStyle = "#74e4df";
-      context.fillText("LINKED FINAL", 458, 128);
-      context.font = "900 26px \"Hiragino Mincho ProN\", \"Yu Mincho\", serif";
+      context.fillText("CO-OP FINISH", 458, 128);
+      context.font = "900 19px \"Hiragino Mincho ProN\", \"Yu Mincho\", serif";
       context.lineWidth = 5;
       context.strokeStyle = "rgba(3, 2, 6, 0.94)";
-      context.strokeText("ダブル奥義", 458, 160);
+      context.strokeText("立つ鳥うんこブリブリ", 458, 158);
       context.fillStyle = "#fff1cf";
-      context.fillText("ダブル奥義", 458, 160);
-      context.font = "800 12px serif";
+      context.fillText("立つ鳥うんこブリブリ", 458, 158);
+      context.font = "800 18px Georgia, serif";
       context.fillStyle = "#ffcc69";
-      context.fillText("金碧双閃", 458, 180);
+      context.fillText("× GMK", 458, 181);
       context.font = "bold 6px monospace";
       context.fillStyle = "#75ddd4";
-      context.fillText("GMK × 立つ鳥うんこブリブリ", 458, 197);
+      context.fillText("SUPPORT ULTIMATE × PLAYER ULTIMATE", 458, 198);
       context.fillStyle = "rgba(255, 241, 207, 0.74)";
-      context.fillText("TWO HEARTS / ONE IMPACT", 458, 211);
+      context.fillText("某ガジェオタG × 某美少女N", 458, 212);
     } else {
       // Reference beat 10: a 1.1s impact tail with two pulses and a readable aftermath.
       const phase = (elapsed - SUPPORT_CINEMATIC_BEATS.linkedFinalEnd)
