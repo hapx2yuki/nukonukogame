@@ -18,12 +18,29 @@ export type SoundName =
 
 export type MusicMode = "explore" | "combat" | "boss" | "victory";
 
+interface GeneratedSoundConfig {
+  path: string;
+  gain: number;
+  playbackRate?: number;
+}
+
+const GENERATED_SOUNDS: Partial<Record<SoundName, GeneratedSoundConfig>> = {
+  attack: { path: "/assets/audio/sfx/slash.mp3", gain: 0.82 },
+  heavy: { path: "/assets/audio/sfx/slash.mp3", gain: 0.94, playbackRate: 0.84 },
+  dash: { path: "/assets/audio/sfx/dash.mp3", gain: 0.78 },
+  dodge: { path: "/assets/audio/sfx/parry.mp3", gain: 0.92 },
+  jump: { path: "/assets/audio/sfx/jump.mp3", gain: 0.76 },
+  ultimate: { path: "/assets/audio/sfx/ultimate.mp3", gain: 0.72 },
+};
+
 export class AudioEngine {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private musicBus: GainNode | null = null;
   private sfxBus: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
+  private generatedBuffers = new Map<string, AudioBuffer>();
+  private generatedSoundPromise: Promise<void> | null = null;
   private musicTimer = 0;
   private musicStep = 0;
   private mode: MusicMode = "explore";
@@ -62,6 +79,7 @@ export class AudioEngine {
     }
 
     if (this.context.state === "suspended") await this.context.resume();
+    await this.loadGeneratedSounds();
     if (!this.started) {
       this.started = true;
       this.startMusicLoop();
@@ -108,6 +126,7 @@ export class AudioEngine {
 
   sfx(name: SoundName): void {
     if (!this.ready()) return;
+    if (this.playGeneratedSound(name)) return;
     switch (name) {
       case "attack":
         this.sweep(520, 1120, 0.085, 0.09, "sawtooth");
@@ -176,6 +195,72 @@ export class AudioEngine {
         this.chime([660, 990], 0.16, 0.04);
         break;
     }
+  }
+
+  private async loadGeneratedSounds(): Promise<void> {
+    if (!this.context) return;
+    if (!this.generatedSoundPromise) {
+      const context = this.context;
+      const paths = [...new Set(
+        Object.values(GENERATED_SOUNDS)
+          .map((config) => config?.path)
+          .filter((path): path is string => Boolean(path)),
+      )];
+      this.generatedSoundPromise = Promise.all(paths.map(async (path) => {
+        try {
+          const response = await fetch(path);
+          if (!response.ok) return;
+          const encodedAudio = await response.arrayBuffer();
+          const decodedAudio = await context.decodeAudioData(encodedAudio);
+          this.generatedBuffers.set(path, decodedAudio);
+        } catch {
+          // The procedural fallback in sfx() remains available if a sample cannot load.
+        }
+      })).then(() => undefined);
+    }
+    await this.generatedSoundPromise;
+  }
+
+  private playGeneratedSound(name: SoundName): boolean {
+    const config = GENERATED_SOUNDS[name];
+    if (!config || !this.generatedBuffers.has(config.path)) return false;
+
+    if (name === "ultimate") {
+      this.playGeneratedBuffer(config.path, config.gain, 1, 0);
+      const parryPath = GENERATED_SOUNDS.dodge?.path;
+      if (parryPath && this.generatedBuffers.has(parryPath)) {
+        this.playGeneratedBuffer(parryPath, 0.74, 1.12, 0.015);
+        this.playGeneratedBuffer(parryPath, 0.66, 0.94, 0.185);
+      }
+      return true;
+    }
+
+    const variation = name === "attack" ? 0.96 + Math.random() * 0.08 : 1;
+    this.playGeneratedBuffer(
+      config.path,
+      config.gain,
+      (config.playbackRate ?? 1) * variation,
+    );
+    return true;
+  }
+
+  private playGeneratedBuffer(
+    path: string,
+    volume: number,
+    playbackRate: number,
+    delay = 0,
+  ): void {
+    if (!this.context || !this.sfxBus) return;
+    const buffer = this.generatedBuffers.get(path);
+    if (!buffer) return;
+    const source = this.context.createBufferSource();
+    const gain = this.context.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = playbackRate;
+    gain.gain.value = volume;
+    source.connect(gain);
+    gain.connect(this.sfxBus);
+    source.start(this.context.currentTime + delay);
   }
 
   private ready(): boolean {
