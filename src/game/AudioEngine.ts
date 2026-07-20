@@ -88,6 +88,7 @@ const MUSIC_TRACKS: Record<MusicMode, MusicTrackConfig> = {
 };
 
 const RAIN_AMBIENCE_PATH = "/assets/audio/sfx/rain-loop.mp3";
+const LINKED_RUSH_HIT_PATH = "/assets/audio/sfx/linked-rush-hit.mp3";
 
 export class AudioEngine {
   private context: AudioContext | null = null;
@@ -330,6 +331,34 @@ export class AudioEngine {
     }
   }
 
+  startLinkedFinale(hitDelays: readonly number[], finalDelay: number): boolean {
+    if (!this.ready()) return false;
+    const finalConfig = GENERATED_SOUNDS.linkedUltimate;
+    if (
+      hitDelays.length === 0
+      || !this.generatedBuffers.has(LINKED_RUSH_HIT_PATH)
+      || !this.generatedBuffers.has(finalConfig.path)
+    ) {
+      return false;
+    }
+
+    this.duckMusic(finalDelay + 1.72, 0.1);
+    hitDelays.forEach((delay, index) => {
+      const progress = hitDelays.length <= 1 ? 1 : index / (hitDelays.length - 1);
+      const volume = 0.34 + progress * 0.16;
+      const playbackRate = 1.12 - progress * 0.18;
+      const pan = (index % 2 === 0 ? -1 : 1) * (0.48 - progress * 0.18);
+      this.playGeneratedBuffer(LINKED_RUSH_HIT_PATH, volume, playbackRate, delay, pan);
+    });
+    this.playGeneratedBuffer(finalConfig.path, finalConfig.gain, 1, finalDelay);
+
+    const impactConfig = GENERATED_SOUNDS.ultimateImpact;
+    if (this.generatedBuffers.has(impactConfig.path)) {
+      this.playGeneratedBuffer(impactConfig.path, 0.58, 0.82, finalDelay + 0.035);
+    }
+    return true;
+  }
+
   private async loadGeneratedSounds(): Promise<void> {
     if (!this.context) return;
     if (!this.generatedSoundPromise) {
@@ -339,6 +368,7 @@ export class AudioEngine {
         ...Object.values(FOOTSTEP_SOUNDS).map((config) => config.path),
         ...Object.values(MUSIC_TRACKS).map((config) => config.path),
         RAIN_AMBIENCE_PATH,
+        LINKED_RUSH_HIT_PATH,
       ])];
       this.generatedSoundPromise = Promise.all(paths.map(async (path) => {
         try {
@@ -387,6 +417,7 @@ export class AudioEngine {
     volume: number,
     playbackRate: number,
     delay = 0,
+    pan = 0,
   ): void {
     if (!this.context || !this.sfxBus) return;
     const buffer = this.generatedBuffers.get(path);
@@ -397,7 +428,14 @@ export class AudioEngine {
     source.playbackRate.value = playbackRate;
     gain.gain.value = volume;
     source.connect(gain);
-    gain.connect(this.sfxBus);
+    if (pan !== 0) {
+      const panner = this.context.createStereoPanner();
+      panner.pan.value = Math.max(-1, Math.min(1, pan));
+      gain.connect(panner);
+      panner.connect(this.sfxBus);
+    } else {
+      gain.connect(this.sfxBus);
+    }
     source.start(this.context.currentTime + delay);
   }
 

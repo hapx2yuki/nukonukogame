@@ -1,12 +1,12 @@
 # 音響素材
 
-2026年7月20日〜21日にElevenLabsの効果音生成APIと音楽生成APIで制作した、ゲーム専用の音響素材です。全36音源を実際の操作・戦闘・演出へ割り当てています。
+2026年7月20日〜21日にElevenLabsの効果音生成APIと音楽生成APIで制作した、ゲーム専用の音響素材です。全37音源を実際の操作・戦闘・演出へ割り当てています。
 
 ## BGM・環境音
 
 - `music/explore.mp3`: 探索・物語
 - `music/combat.mp3`: 通常戦闘
-- `music/boss.mp3`: ボス戦専用の48秒楽曲を循環用に整音したもの
+- `music/boss.mp3`: 強敵感を増したボス戦専用の約50秒楽曲を循環用に整音したもの
 - `music/victory.mp3`: ボス撃破後
 - `sfx/rain-loop.mp3`: 雨の街の環境音
 
@@ -42,6 +42,7 @@
 - `sfx/cutin-support.mp3`: 某ガジェオタGの奥義カットイン
 - `sfx/cutin-gmk.mp3`: GMKの奥義カットイン
 - `sfx/cutin-linked.mp3`: 合体技成立時の最高潮カットイン
+- `sfx/linked-rush-hit.mp3`: 合体成立後に加速する7連続の着弾
 - `sfx/ultimate.mp3`: GMK
 - `sfx/ultimate-impact.mp3`: 奥義命中時の爆発・衝撃
 - `sfx/linked-finisher.mp3`: 合体技の最終打となる最大衝撃

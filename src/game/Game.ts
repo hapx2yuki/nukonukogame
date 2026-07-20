@@ -32,6 +32,7 @@ const SUPPORT_CINEMATIC_BEATS = {
   combinedRushEnd: 6.27,
   linkedFinalEnd: 7.35,
 } as const;
+const LINKED_BARRAGE_BEATS = [6.52, 6.69, 6.85, 7, 7.14, 7.26, 7.34] as const;
 
 type GameState = "idle" | "story" | "playing" | "upgrade" | "paused" | "cinematic" | "supportCinematic" | "victory" | "dead";
 type Upgrade = "fire" | "bell" | "moon" | null;
@@ -408,6 +409,8 @@ export class Game {
   private helperTriggered = false;
   private supportCinematicTimer = 0;
   private supportCinematicEvents = 0;
+  private supportBarrageHits = 0;
+  private supportFinaleAudioScheduled = false;
   private supportCaptureTime: number | null = null;
   private readonly cleanSupportCapture =
     new URLSearchParams(window.location.search).get("capture") === "clean";
@@ -793,6 +796,8 @@ export class Game {
     this.helperTriggered = false;
     this.supportCinematicTimer = 0;
     this.supportCinematicEvents = 0;
+    this.supportBarrageHits = 0;
+    this.supportFinaleAudioScheduled = false;
     this.supportCaptureTime = null;
     this.midStoryTriggered = false;
     this.bossTriggered = false;
@@ -1438,6 +1443,8 @@ export class Game {
     if (!this.helper.active || this.state !== "playing") return;
     this.supportCinematicTimer = SUPPORT_CINEMATIC_DURATION;
     this.supportCinematicEvents = 0;
+    this.supportBarrageHits = 0;
+    this.supportFinaleAudioScheduled = false;
     this.state = "supportCinematic";
     this.player.vx = 0;
     this.player.vy = 0;
@@ -1537,7 +1544,33 @@ export class Game {
       this.supportCinematicEvents |= 32;
       this.setSkillName("GMK × 立つ鳥うんこブリブリ", 0.86);
       this.audio.sfx("cutinLinked");
+      this.supportFinaleAudioScheduled = this.audio.startLinkedFinale(
+        LINKED_BARRAGE_BEATS.map((beat) => beat - SUPPORT_CINEMATIC_BEATS.combinedRushEnd),
+        SUPPORT_CINEMATIC_BEATS.linkedFinalEnd - SUPPORT_CINEMATIC_BEATS.combinedRushEnd,
+      );
       this.announce("GMKと立つ鳥うんこブリブリが連動");
+    }
+
+    while (
+      this.supportBarrageHits < LINKED_BARRAGE_BEATS.length
+      && elapsed >= LINKED_BARRAGE_BEATS[this.supportBarrageHits]
+    ) {
+      const hitIndex = this.supportBarrageHits;
+      this.supportBarrageHits += 1;
+      const target = this.supportCinematicTargets(1)[0];
+      const impactX = target ? target.x + target.w / 2 : this.cameraX + VIEW_WIDTH * 0.7;
+      const impactY = target ? target.y + target.h * 0.42 : 138;
+      const progress = hitIndex / (LINKED_BARRAGE_BEATS.length - 1);
+      this.spawnBurst(
+        impactX,
+        impactY,
+        hitIndex % 2 === 0 ? "#ffe69a" : "#74e4df",
+        8 + hitIndex * 2,
+        hitIndex % 2 === 0 ? "shard" : "spark",
+      );
+      this.addRing(impactX, impactY, hitIndex % 2 === 0 ? "#ffbd45" : "#8ffff2", 22 + hitIndex * 5);
+      this.shake = Math.max(this.shake, (2.4 + progress * 4.2) * this.shakeScale);
+      this.whiteFlash = this.flashes ? Math.max(this.whiteFlash, 0.12 + progress * 0.24) : 0.05;
     }
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.linkedFinalEnd && (this.supportCinematicEvents & 64) === 0) {
@@ -1545,7 +1578,7 @@ export class Game {
       for (const enemy of this.supportCinematicTargets()) {
         this.damageEnemy(
           enemy,
-          enemy.kind === "boss" ? 32 : 45,
+          enemy.kind === "boss" ? 96 : 135,
           54,
           this.player.facing * 112,
           true,
@@ -1568,12 +1601,14 @@ export class Game {
       this.hitStop = 0;
       this.shake = Math.max(this.shake, 9 * this.shakeScale);
       this.whiteFlash = this.flashes ? 1 : 0.16;
-      this.audio.sfx("linkedUltimate");
+      if (!this.supportFinaleAudioScheduled) this.audio.sfx("linkedUltimate");
     }
 
     if (this.supportCinematicTimer <= 0) {
       this.state = "playing";
       this.supportCinematicEvents = 0;
+      this.supportBarrageHits = 0;
+      this.supportFinaleAudioScheduled = false;
       this.supportCaptureTime = null;
       this.player.attackKind = "slash";
       this.player.invulnerable = 0.6;
