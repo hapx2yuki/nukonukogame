@@ -8,21 +8,21 @@ const GROUND_Y = 224;
 const GROUND_DEPTH = 60;
 const GRAVITY = 690;
 const PLAYER_SPEED = 114;
-const ULTIMATE_DURATION = 2.15;
-const ULTIMATE_STRIKE_AT = 0.47;
+const ULTIMATE_DURATION = 3.2;
+const ULTIMATE_STRIKE_AT = ULTIMATE_DURATION * 0.22;
 const ULTIMATE_HITS_REQUIRED = 5;
 const HELPER_TRIGGER_X = 2300;
-const SUPPORT_CINEMATIC_DURATION = 6.4;
+const SUPPORT_CINEMATIC_DURATION = 8;
 const SUPPORT_CINEMATIC_BEATS = {
   linkedPortraitEnd: 0.36,
   linkPulseEnd: 0.62,
   helperManifestEnd: 1.08,
   manifestImpactEnd: 1.65,
-  helperUltimateEnd: 2.21,
-  helperStrikeEnd: 2.71,
-  gmkUltimateEnd: 3.43,
-  combinedRushEnd: 4.7,
-  linkedFinalEnd: 5.29,
+  helperUltimateEnd: 3.05,
+  helperStrikeEnd: 3.55,
+  gmkUltimateEnd: 5,
+  combinedRushEnd: 6.27,
+  linkedFinalEnd: 6.86,
 } as const;
 
 type GameState = "idle" | "story" | "playing" | "upgrade" | "paused" | "cinematic" | "supportCinematic" | "victory" | "dead";
@@ -4300,15 +4300,12 @@ export class Game {
       context.lineTo(480, 238);
       context.stroke();
       context.textAlign = "left";
-      context.font = "900 20px monospace";
-      context.fillStyle = "#fff0c8";
-      context.fillText("GADGET ATTACK", 23, 151);
       context.font = "bold 7px monospace";
       context.fillStyle = "#74e4df";
-      context.fillText("SEGA / FAMICOM / EVEN G2 / MAC MINI", 25, 170);
+      context.fillText("SEGA / FAMICOM / EVEN G2 / MAC MINI", 25, 164);
       context.font = "bold 6px monospace";
       context.fillStyle = "rgba(255, 241, 207, 0.72)";
-      context.fillText("某ガジェオタG — 4 DEVICES / 1 TARGET", 25, 187);
+      context.fillText("某ガジェオタG — 4 DEVICES / 1 TARGET", 25, 181);
     } else if (elapsed < SUPPORT_CINEMATIC_BEATS.manifestImpactEnd) {
       // Reference beat 4: live sigil. All four approved gadgets move toward one target.
       const phase = (elapsed - SUPPORT_CINEMATIC_BEATS.helperManifestEnd)
