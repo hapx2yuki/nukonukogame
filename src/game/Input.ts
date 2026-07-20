@@ -1,3 +1,5 @@
+import { getStoredValue, setStoredValue } from "./Storage";
+
 export type Action = "left" | "right" | "down" | "jump" | "attack" | "charm" | "dash" | "ultimate" | "pause" | "confirm";
 
 export const BINDABLE_ACTIONS = [
@@ -64,23 +66,27 @@ function isBindingCode(value: unknown): value is string {
 
 function loadBindings(): BindingMap {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "") as Partial<Record<BindableAction, unknown>>;
-    const loaded = cloneBindings(DEFAULT_BINDINGS);
+    const stored = getStoredValue(STORAGE_KEY, "");
+    if (!stored) return cloneBindings(DEFAULT_BINDINGS);
+    const parsed = JSON.parse(stored) as Partial<Record<BindableAction, unknown>>;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return cloneBindings(DEFAULT_BINDINGS);
+
+    const loaded = {} as BindingMap;
     const used = new Set<string>();
 
     for (const action of BINDABLE_ACTIONS) {
       const slots = parsed[action];
-      if (!Array.isArray(slots)) continue;
-      const validated = slots
-        .slice(0, 2)
-        .map((code) => isBindingCode(code) && !RESERVED_BINDINGS.has(code) ? code : null) as BindingSlots;
-      while (validated.length < 2) validated.push(null);
-      const unique = validated.map((code) => {
-        if (!code || used.has(code)) return null;
+      if (!Array.isArray(slots) || slots.length !== 2) return cloneBindings(DEFAULT_BINDINGS);
+      const validated = slots.map((code) => {
+        if (code === null) return null;
+        if (!isBindingCode(code) || RESERVED_BINDINGS.has(code) || used.has(code)) {
+          throw new Error("Invalid key binding");
+        }
         used.add(code);
         return code;
       }) as BindingSlots;
-      if (unique.some(Boolean)) loaded[action] = unique;
+      if (!validated.some(Boolean)) return cloneBindings(DEFAULT_BINDINGS);
+      loaded[action] = validated;
     }
 
     return loaded;
@@ -158,6 +164,7 @@ export class Input {
   private onKeyDownBound = (event: KeyboardEvent) => this.onKeyDown(event);
   private onKeyUpBound = (event: KeyboardEvent) => this.onKeyUp(event);
   private onCanvasPointerDownBound = (event: PointerEvent) => this.onCanvasPointerDown(event);
+  private onCanvasAuxClickBound = (event: MouseEvent) => this.onCanvasAuxClick(event);
   private onBlurBound = () => this.reset();
   private onPageHideBound = () => this.reset();
   private onGlobalPointerEndBound = (event: PointerEvent) => this.releasePointer(event);
@@ -170,6 +177,7 @@ export class Input {
     window.addEventListener("pointerup", this.onGlobalPointerEndBound, true);
     window.addEventListener("pointercancel", this.onGlobalPointerEndBound, true);
     canvas.addEventListener("pointerdown", this.onCanvasPointerDownBound, { passive: false });
+    canvas.addEventListener("auxclick", this.onCanvasAuxClickBound);
     this.bindTouchControls();
     this.bindMoveStick();
   }
@@ -338,13 +346,14 @@ export class Input {
     window.removeEventListener("pointerup", this.onGlobalPointerEndBound, true);
     window.removeEventListener("pointercancel", this.onGlobalPointerEndBound, true);
     this.canvas.removeEventListener("pointerdown", this.onCanvasPointerDownBound);
+    this.canvas.removeEventListener("auxclick", this.onCanvasAuxClickBound);
     this.touchCleanup.forEach((cleanup) => cleanup());
     this.touchCleanup = [];
     this.reset();
   }
 
   private persistBindings(): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.bindings));
+    setStoredValue(STORAGE_KEY, JSON.stringify(this.bindings));
   }
 
   private actionForCode(code: string): Action | undefined {
@@ -377,6 +386,11 @@ export class Input {
     this.mouseHeld.add(action);
     this.activeMouseButtons.set(event.button, action);
     this.canvas.focus({ preventScroll: true });
+  }
+
+  private onCanvasAuxClick(event: MouseEvent): void {
+    const action = this.actionForCode(`Mouse${event.button}`);
+    if (action) event.preventDefault();
   }
 
   private connectedGamepad(): Gamepad | undefined {

@@ -7,6 +7,7 @@ import {
   bindingLabel,
   type BindableAction,
 } from "./game/Input";
+import { getStoredValue, setStoredValue } from "./game/Storage";
 
 function byId<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -28,9 +29,9 @@ const flashButton = byId<HTMLButtonElement>("flash-toggle");
 const fullscreenButton = byId<HTMLButtonElement>("fullscreen-button");
 const audio = new AudioEngine();
 
-let soundEnabled = localStorage.getItem("bishoujo-n-sound") !== "off";
-let shakeEnabled = localStorage.getItem("bishoujo-n-shake") !== "off";
-let flashesEnabled = localStorage.getItem("bishoujo-n-flashes") !== "off";
+let soundEnabled = getStoredValue("bishoujo-n-sound", "on") !== "off";
+let shakeEnabled = getStoredValue("bishoujo-n-shake", "on") !== "off";
+let flashesEnabled = getStoredValue("bishoujo-n-flashes", "on") !== "off";
 let gameStartPending = false;
 let titleGamepadHeld = false;
 audio.setMuted(!soundEnabled);
@@ -210,9 +211,9 @@ function syncSettings(): void {
 
 function toggleSound(): void {
   soundEnabled = !soundEnabled;
-  localStorage.setItem("bishoujo-n-sound", soundEnabled ? "on" : "off");
+  setStoredValue("bishoujo-n-sound", soundEnabled ? "on" : "off");
   audio.setMuted(!soundEnabled);
-  if (soundEnabled) void audio.start();
+  if (soundEnabled) void audio.start().catch(() => undefined);
   syncSettings();
 }
 
@@ -233,15 +234,14 @@ async function enterMobileFullscreen(): Promise<void> {
   }
 }
 
-async function startGame(): Promise<void> {
+function startGame(): void {
   if (gameStartPending) return;
   gameStartPending = true;
   showGame();
   const debugMode = new URLSearchParams(window.location.search).has("debug");
-  const soundReady = debugMode ? Promise.resolve() : audio.start();
-  const fullscreenReady = enterMobileFullscreen();
   try {
-    await Promise.allSettled([soundReady, fullscreenReady]);
+    if (!debugMode) void audio.start().catch(() => undefined);
+    void enterMobileFullscreen();
     game.start();
   } finally {
     gameStartPending = false;
@@ -268,14 +268,14 @@ byId<HTMLButtonElement>("retry-button").addEventListener("click", () => void sta
 
 shakeButton.addEventListener("click", () => {
   shakeEnabled = !shakeEnabled;
-  localStorage.setItem("bishoujo-n-shake", shakeEnabled ? "on" : "off");
+  setStoredValue("bishoujo-n-shake", shakeEnabled ? "on" : "off");
   game.setShakeEnabled(shakeEnabled);
   syncSettings();
 });
 
 flashButton.addEventListener("click", () => {
   flashesEnabled = !flashesEnabled;
-  localStorage.setItem("bishoujo-n-flashes", flashesEnabled ? "on" : "off");
+  setStoredValue("bishoujo-n-flashes", flashesEnabled ? "on" : "off");
   game.setFlashesEnabled(flashesEnabled);
   syncSettings();
 });
@@ -355,8 +355,9 @@ window.addEventListener("gamepaddisconnected", () => {
   byId<HTMLElement>("aria-live").textContent = "ゲームパッドの接続が解除されました";
 });
 
-document.addEventListener("pointerdown", () => void audio.start(), { once: true });
+document.addEventListener("pointerdown", () => void audio.start().catch(() => undefined), { once: true });
 document.addEventListener("visibilitychange", () => {
+  audio.setPageHidden(document.hidden);
   if (!document.hidden) return;
   game.releaseInputs();
   if (!game.isPaused) game.togglePause();

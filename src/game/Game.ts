@@ -5,6 +5,7 @@ import {
   type BindingChangeResult,
   type BindingMap,
 } from "./Input";
+import { getStoredNumber, setStoredValue } from "./Storage";
 
 const VIEW_WIDTH = 480;
 const VIEW_HEIGHT = 270;
@@ -17,6 +18,8 @@ const ULTIMATE_DURATION = 3.2;
 const ULTIMATE_STRIKE_AT = ULTIMATE_DURATION * 0.22;
 const ULTIMATE_HITS_REQUIRED = 5;
 const HELPER_TRIGGER_X = 2300;
+const BOSS_ARENA_MIN_X = 4260;
+const BOSS_ARENA_MAX_X = 5230;
 const SUPPORT_CINEMATIC_DURATION = 8;
 const SUPPORT_CINEMATIC_BEATS = {
   linkedPortraitEnd: 0.36,
@@ -608,21 +611,20 @@ export class Game {
       this.resume();
       return;
     }
-    if (this.state !== "playing") return;
-    this.previousState = this.state;
-    this.state = "paused";
-    this.input.reset();
-    this.pauseOverlay.classList.add("is-visible");
-    this.announce("一時停止");
+    this.pause("一時停止");
   }
 
   pauseForSettings(): void {
+    this.pause("操作設定を開きました");
+  }
+
+  private pause(message: string): void {
     if (this.state === "paused" || this.state === "idle" || this.state === "victory") return;
     this.previousState = this.state;
     this.state = "paused";
     this.input.reset();
     this.pauseOverlay.classList.add("is-visible");
-    this.announce("操作設定を開きました");
+    this.announce(message);
   }
 
   resume(): void {
@@ -767,10 +769,12 @@ export class Game {
 
   private resetRun(): void {
     this.state = "idle";
+    this.previousState = "playing";
     this.player = this.createPlayer();
     this.helper = this.createHelper();
     this.cameraX = 0;
     this.cameraY = 0;
+    this.targetCameraX = 0;
     this.elapsed = 0;
     this.runTime = 0;
     this.hitStop = 0;
@@ -811,6 +815,12 @@ export class Game {
     this.slashes = [];
     this.afterimages = [];
     this.damageNumbers = [];
+    this.dialogue = [];
+    this.dialogueIndex = 0;
+    this.dialogueTyped = 0;
+    this.dialogueSoundCursor = 0;
+    this.dialogueOnDone = null;
+    this.footstepTimer = 0;
     this.props = this.createProps();
     this.enemies = this.createEnemies();
     this.storyOverlay.classList.remove("is-visible");
@@ -1718,6 +1728,7 @@ export class Game {
         enemy.stateTimer -= delta;
         enemy.vx *= Math.pow(0.02, delta);
         enemy.x += enemy.vx * delta;
+        this.clampEnemyToWorld(enemy);
         if (enemy.stateTimer <= 0) {
           enemy.state = "idle";
           enemy.actionCooldown = 0.38;
@@ -1735,8 +1746,14 @@ export class Game {
         enemy.vx *= Math.pow(0.08, delta);
         enemy.y = enemy.baseY;
       }
-      enemy.x = clamp(enemy.x, 12, WORLD_WIDTH - enemy.w - 12);
+      this.clampEnemyToWorld(enemy);
     }
+  }
+
+  private clampEnemyToWorld(enemy: Enemy): void {
+    enemy.x = enemy.kind === "boss"
+      ? clamp(enemy.x, BOSS_ARENA_MIN_X, BOSS_ARENA_MAX_X - enemy.w)
+      : clamp(enemy.x, 12, WORLD_WIDTH - enemy.w - 12);
   }
 
   private updateLantern(enemy: Enemy, delta: number): void {
@@ -2459,9 +2476,9 @@ export class Game {
     element("result-combo").textContent = String(this.maxCombo);
     element("result-dodges").textContent = String(this.perfectDodges);
     element("result-score").textContent = finalScore.toLocaleString("ja-JP");
-    const previousBest = Number(localStorage.getItem("bishoujo-n-best") ?? 0);
+    const previousBest = getStoredNumber("bishoujo-n-best");
     const best = Math.max(previousBest, finalScore);
-    localStorage.setItem("bishoujo-n-best", String(best));
+    setStoredValue("bishoujo-n-best", String(best));
     element("best-score").textContent = finalScore > previousBest ? `最高記録更新　${best.toLocaleString("ja-JP")}` : `最高記録　${best.toLocaleString("ja-JP")}`;
     this.announce(`第一夜踏破。評価${rank}、得点${finalScore}`);
   }

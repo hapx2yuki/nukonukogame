@@ -841,8 +841,9 @@ kbd {
   display: none;
 }
 
-.game-stage:has(.story-overlay.is-visible, .full-overlay.is-visible, .boss-title.is-visible, .cinema-bars.is-visible) .touch-left,
-.game-stage:has(.story-overlay.is-visible, .full-overlay.is-visible, .boss-title.is-visible, .cinema-bars.is-visible) .touch-right {
+.game-stage:has(.story-overlay.is-visible, .full-overlay.is-visible, .boss-title.is-visible, .cinema-bars.is-visible) .touch-stick,
+.game-stage:has(.story-overlay.is-visible, .full-overlay.is-visible, .boss-title.is-visible, .cinema-bars.is-visible) .touch-action-cluster,
+.game-stage:has(.story-overlay.is-visible, .full-overlay.is-visible, .boss-title.is-visible, .cinema-bars.is-visible) .touch-rail-label {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
@@ -1066,6 +1067,31 @@ kbd {
   background: radial-gradient(circle, rgba(152, 78, 33, 0.92), rgba(54, 19, 29, 0.98));
   box-shadow: inset 0 0 16px rgba(255, 230, 154, 0.28), 0 0 20px rgba(255, 189, 69, 0.78);
   color: #fff;
+}
+
+.touch-controls .touch-pause {
+  position: absolute;
+  top: max(7px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 4;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 5px 3px 4px;
+  border-color: rgba(121, 216, 208, 0.44);
+  color: rgba(217, 255, 250, 0.82);
+  transform: translateX(-50%);
+}
+
+.touch-controls .touch-pause > span {
+  font-family: var(--sans);
+  font-size: 13px;
+  letter-spacing: -0.08em;
+}
+
+.touch-controls .touch-pause.is-pressed {
+  transform: translateX(-50%) scale(0.9);
 }
 
 .touch-controls .charm { grid-area: charm; color: var(--teal); }
@@ -1351,7 +1377,7 @@ kbd {
   border: 0 !important;
 }
 
-@media (pointer: coarse), (hover: none) and (any-pointer: coarse) {
+@media (pointer: coarse), (any-pointer: coarse) {
   .controls-strip { display: none; }
   .icon-button,
   .dialog-close,
@@ -1369,7 +1395,7 @@ kbd {
 
 @media
   (orientation: landscape) and (pointer: coarse),
-  (orientation: landscape) and (hover: none) and (any-pointer: coarse) {
+  (orientation: landscape) and (any-pointer: coarse) {
   #game-screen {
     --touch-button: clamp(48px, min(6.2dvw, 13.5dvh), 54px);
     --touch-gap: clamp(6px, 1dvw, 10px);
@@ -1544,8 +1570,8 @@ kbd {
 
 @media
   (orientation: portrait) and (pointer: coarse),
-  (orientation: portrait) and (hover: none) and (any-pointer: coarse) {
-  #game-screen.is-active ~ .rotate-hint,
+  (orientation: portrait) and (any-pointer: coarse) {
+  #game-screen.is-active .rotate-hint,
   body.game-active .rotate-hint { display: grid; }
   .touch-controls { display: none; }
 }
@@ -1603,7 +1629,7 @@ kbd {
 
 @media
   (orientation: landscape) and (pointer: coarse) and (max-width: 700px) and (min-height: 311px),
-  (orientation: landscape) and (hover: none) and (any-pointer: coarse) and (max-width: 700px) and (min-height: 311px) {
+  (orientation: landscape) and (any-pointer: coarse) and (max-width: 700px) and (min-height: 311px) {
   #game-screen {
     --touch-button: 46px;
     --touch-gap: 4px;
@@ -1640,7 +1666,7 @@ kbd {
 
 @media
   (orientation: landscape) and (pointer: coarse) and (max-height: 310px),
-  (orientation: landscape) and (hover: none) and (any-pointer: coarse) and (max-height: 310px) {
+  (orientation: landscape) and (any-pointer: coarse) and (max-height: 310px) {
   #game-screen {
     --touch-button: 44px;
     --touch-gap: 4px;

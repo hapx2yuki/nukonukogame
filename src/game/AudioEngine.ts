@@ -91,6 +91,7 @@ export class AudioEngine {
   private musicStep = 0;
   private mode: MusicMode = "explore";
   private muted = false;
+  private pageHidden = document.hidden;
   private started = false;
 
   get isMuted(): boolean {
@@ -111,7 +112,7 @@ export class AudioEngine {
       compressor.release.value = 0.18;
 
       this.master = this.context.createGain();
-      this.master.gain.value = this.muted ? 0 : 0.72;
+      this.master.gain.value = this.muted || this.pageHidden ? 0 : 0.72;
       this.musicBus = this.context.createGain();
       this.musicBus.gain.value = 0.32;
       this.sfxBus = this.context.createGain();
@@ -134,10 +135,19 @@ export class AudioEngine {
 
   setMuted(muted: boolean): void {
     this.muted = muted;
+    this.applyMasterGain();
+  }
+
+  setPageHidden(hidden: boolean): void {
+    this.pageHidden = hidden;
+    this.applyMasterGain();
+  }
+
+  private applyMasterGain(): void {
     if (!this.context || !this.master) return;
     const now = this.context.currentTime;
     this.master.gain.cancelScheduledValues(now);
-    this.master.gain.setTargetAtTime(muted ? 0 : 0.72, now, 0.035);
+    this.master.gain.setTargetAtTime(this.muted || this.pageHidden ? 0 : 0.72, now, 0.035);
   }
 
   toggleMuted(): boolean {
@@ -387,7 +397,7 @@ export class AudioEngine {
   }
 
   private ready(): boolean {
-    return Boolean(this.context && this.sfxBus && this.context.state === "running" && !this.muted);
+    return Boolean(this.context && this.sfxBus && this.context.state === "running" && !this.muted && !this.pageHidden);
   }
 
   private startMusicLoop(): void {
@@ -397,7 +407,7 @@ export class AudioEngine {
   }
 
   private musicTick(): void {
-    if (!this.context || !this.musicBus || this.context.state !== "running" || this.muted) return;
+    if (!this.context || !this.musicBus || this.context.state !== "running" || this.muted || this.pageHidden) return;
     const step = this.musicStep++;
     const exploreScale = [110, 130.81, 146.83, 164.81, 196, 220];
     const combatScale = [110, 130.81, 146.83, 174.61, 196, 233.08];

@@ -151,6 +151,7 @@
               </div>
             </div>
             <div class="touch-right">
+              <button type="button" class="touch-pause" data-control="pause" aria-label="一時停止"><span>Ⅱ</span><small>PAUSE</small></button>
               <span class="touch-rail-label" aria-hidden="true">ACTION</span>
               <div class="touch-action-cluster">
                 <button type="button" class="charm" data-control="charm" aria-label="護符を投げる"><span>符</span><small>CHARM</small></button>
@@ -173,6 +174,7 @@
           <span data-prompt-action="dash"></span>
           <span data-prompt-action="ultimate"></span>
         </p>
+        <div id="rotate-hint" class="rotate-hint" role="status"><span>画面回転ロックを解除し、<br />端末を横向きにしてください</span></div>
       </section>
     </div>
 
@@ -207,7 +209,6 @@
       </form>
     </dialog>
 
-    <div id="rotate-hint" class="rotate-hint" role="status"><span>画面回転ロックを解除し、<br />端末を横向きにしてください</span></div>
     <div id="aria-live" class="sr-only" aria-live="polite"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
