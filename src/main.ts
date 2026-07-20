@@ -59,6 +59,11 @@ function toggleSound(): void {
 }
 
 async function startGame(): Promise<void> {
+  if (new URLSearchParams(window.location.search).has("debug")) {
+    showGame();
+    game.start();
+    return;
+  }
   await audio.start();
   showGame();
   game.start();

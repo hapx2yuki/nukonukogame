@@ -12,8 +12,9 @@ const ULTIMATE_DURATION = 2.15;
 const ULTIMATE_STRIKE_AT = 0.47;
 const ULTIMATE_HITS_REQUIRED = 5;
 const HELPER_TRIGGER_X = 2300;
+const SUPPORT_CINEMATIC_DURATION = 5.2;
 
-type GameState = "idle" | "story" | "playing" | "upgrade" | "paused" | "cinematic" | "victory" | "dead";
+type GameState = "idle" | "story" | "playing" | "upgrade" | "paused" | "cinematic" | "supportCinematic" | "victory" | "dead";
 type Upgrade = "fire" | "bell" | "moon" | null;
 type EnemyKind = "lantern" | "hound" | "bird" | "boss";
 type EnemyState = "idle" | "chase" | "telegraph" | "attack" | "dash" | "recover" | "stagger" | "dead";
@@ -382,6 +383,9 @@ export class Game {
   private upgrade: Upgrade = null;
   private upgradeTriggered = false;
   private helperTriggered = false;
+  private supportCinematicPlayed = false;
+  private supportCinematicTimer = 0;
+  private supportCinematicEvents = 0;
   private midStoryTriggered = false;
   private bossTriggered = false;
   private bossDefeated = false;
@@ -420,6 +424,7 @@ export class Game {
   private propsSheet = loadGameImage("/assets/game/props.png");
   private backgroundPlate = loadGameImage("/assets/game/glass-slope-background.png");
   private gmkCutin = loadGameImage("/assets/game/gmk-cutin.png");
+  private helperCutin = loadGameImage("/assets/game/helper-cutin.png");
 
   private storyOverlay = element<HTMLDivElement>("story-overlay");
   private storySpeaker = element<HTMLParagraphElement>("story-speaker");
@@ -465,6 +470,20 @@ export class Game {
     this.state = "story";
     this.audio.setMode("explore");
     const debug = new URLSearchParams(window.location.search).get("debug");
+    if (debug === "support") {
+      this.state = "playing";
+      this.player.x = HELPER_TRIGGER_X + 8;
+      this.player.y = GROUND_Y - this.player.h;
+      this.player.grounded = true;
+      this.player.invulnerable = 999;
+      this.cameraX = HELPER_TRIGGER_X - 170;
+      this.targetCameraX = this.cameraX;
+      this.checkpointX = HELPER_TRIGGER_X - 40;
+      this.upgrade = "moon";
+      this.upgradeTriggered = true;
+      this.triggerHelper();
+      return;
+    }
     if (debug === "boss" || debug === "victory") {
       this.state = "playing";
       this.player.x = 4240;
@@ -648,6 +667,9 @@ export class Game {
     this.upgrade = null;
     this.upgradeTriggered = false;
     this.helperTriggered = false;
+    this.supportCinematicPlayed = false;
+    this.supportCinematicTimer = 0;
+    this.supportCinematicEvents = 0;
     this.midStoryTriggered = false;
     this.bossTriggered = false;
     this.bossDefeated = false;
@@ -768,7 +790,12 @@ export class Game {
     if (this.state === "story") {
       this.updateDialogue(rawDelta);
       if (this.input.consume("confirm") || this.input.consume("attack")) this.advanceDialogue();
-    } else if (this.state === "playing" || this.state === "cinematic" || this.state === "dead") {
+    } else if (
+      this.state === "playing"
+      || this.state === "cinematic"
+      || this.state === "supportCinematic"
+      || this.state === "dead"
+    ) {
       this.updateFrame(rawDelta);
     } else if (this.state === "paused" || this.state === "upgrade" || this.state === "victory") {
       this.updateParticles(rawDelta * 0.25);
@@ -795,6 +822,12 @@ export class Game {
       this.deathTimer -= rawDelta;
       this.updateParticles(delta);
       if (this.deathTimer <= 0) this.respawn();
+      return;
+    }
+
+    if (this.state === "supportCinematic") {
+      this.updateSupportCinematic(rawDelta);
+      this.updateParticles(delta);
       return;
     }
 
@@ -1230,6 +1263,141 @@ export class Game {
     this.addRing(this.helper.x, this.helper.y + 24, "#ffe69a", 42);
     this.audio.sfx("select");
     this.announce("助っ人、某ガジェオタG参戦。ガジェット支援を開始");
+    this.startSupportCinematic();
+  }
+
+  private startSupportCinematic(): void {
+    if (this.supportCinematicPlayed) return;
+    this.supportCinematicPlayed = true;
+    this.supportCinematicTimer = SUPPORT_CINEMATIC_DURATION;
+    this.supportCinematicEvents = 0;
+    this.state = "supportCinematic";
+    this.player.vx = 0;
+    this.player.vy = 0;
+    this.helper.vx = 0;
+    this.input.reset();
+    this.cinemaBars.classList.add("is-visible");
+    this.setSkillName("助っ人参戦・某ガジェオタG", 0.5);
+  }
+
+  private supportCinematicTargets(limit = Number.POSITIVE_INFINITY): Enemy[] {
+    return this.enemies
+      .filter((enemy) => (
+        enemy.active
+        && enemy.state !== "dead"
+        && enemy.x + enemy.w >= this.cameraX - 72
+        && enemy.x <= this.cameraX + VIEW_WIDTH + 72
+        && Math.abs(enemy.x - this.player.x) <= 390
+      ))
+      .sort((left, right) => Math.abs(left.x - this.helper.x) - Math.abs(right.x - this.helper.x))
+      .slice(0, limit);
+  }
+
+  private updateSupportCinematic(delta: number): void {
+    this.supportCinematicTimer = Math.max(0, this.supportCinematicTimer - delta);
+    const elapsed = SUPPORT_CINEMATIC_DURATION - this.supportCinematicTimer;
+    this.player.vx = 0;
+    this.player.vy = 0;
+    this.helper.vx = 0;
+
+    // The cast and camera are frozen for the chain, but hit feedback is allowed to breathe.
+    for (const enemy of this.enemies) {
+      enemy.invulnerable = Math.max(0, enemy.invulnerable - delta);
+      enemy.hitFlash = Math.max(0, enemy.hitFlash - delta * 6);
+    }
+
+    if (elapsed >= 0.36 && (this.supportCinematicEvents & 1) === 0) {
+      this.supportCinematicEvents |= 1;
+      this.setSkillName("立つ鳥うんこブリブリ", 1.1);
+      this.audio.sfx("ultimate");
+      this.announce("某ガジェオタG、必殺技「立つ鳥うんこブリブリ」発動");
+    }
+
+    if (elapsed >= 1.12 && (this.supportCinematicEvents & 2) === 0) {
+      this.supportCinematicEvents |= 2;
+      const target = this.supportCinematicTargets(1)[0];
+      const impactX = target ? target.x + target.w / 2 : this.cameraX + VIEW_WIDTH * 0.66;
+      const impactY = target ? target.y + target.h * 0.42 : 142;
+      this.spawnBurst(impactX, impactY, "#74e4df", 24, "spark");
+      this.spawnBurst(impactX, impactY, "#ffbd45", 18, "shard");
+      this.addRing(impactX, impactY, "#9afff4", 52);
+      this.shake = Math.max(this.shake, 4.2 * this.shakeScale);
+      this.whiteFlash = this.flashes ? 0.34 : 0.07;
+      this.audio.sfx("hit");
+    }
+
+    if (elapsed >= 2.18 && (this.supportCinematicEvents & 4) === 0) {
+      this.supportCinematicEvents |= 4;
+      this.helper.state = "throw";
+      this.helper.stateTimer = 0.5;
+      this.helper.gadgetLabel = "SEGA / FAMICOM / EVEN G2 / MAC MINI";
+      this.helper.labelTimer = 0.9;
+      const targets = this.supportCinematicTargets(3);
+      for (const [index, enemy] of targets.entries()) {
+        const direction = enemy.x + enemy.w / 2 >= this.helper.x ? 1 : -1;
+        this.damageEnemy(enemy, 6, 0, direction * 2, false, "helper");
+        this.spawnBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.4, index % 2 === 0 ? "#74e4df" : "#ffbd45", 16, "spark");
+        this.addRing(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.4, "#ffdd83", 30 + index * 8);
+      }
+      this.shake = Math.max(this.shake, 3.6 * this.shakeScale);
+      this.whiteFlash = this.flashes ? 0.28 : 0.06;
+      this.audio.sfx("charm");
+    }
+
+    if (elapsed >= 2.7 && (this.supportCinematicEvents & 8) === 0) {
+      this.supportCinematicEvents |= 8;
+      this.player.attackKind = "ultimate";
+      this.setSkillName("GMK・連環", 1.85);
+      this.audio.sfx("ultimate");
+      this.announce("某美少女N、GMK連動奥義");
+    }
+
+    if (elapsed >= 4.58 && (this.supportCinematicEvents & 16) === 0) {
+      this.supportCinematicEvents |= 16;
+      for (const enemy of this.supportCinematicTargets()) {
+        this.damageEnemy(
+          enemy,
+          enemy.kind === "boss" ? 32 : 45,
+          54,
+          this.player.facing * 112,
+          true,
+          "ultimate",
+        );
+      }
+      for (let offset = -250; offset <= 250; offset += 38) {
+        this.slashes.push({
+          x: this.player.x + offset,
+          y: 64 + seeded(offset + 881) * 150,
+          life: 0.5,
+          maxLife: 0.5,
+          radius: 68 + seeded(offset + 92) * 34,
+          facing: offset % 76 === 0 ? 1 : -1,
+          angle: seeded(offset + 443) * 2 - 1,
+          color: offset % 76 === 0 ? "#8ffff2" : "#ffe69a",
+          heavy: true,
+        });
+      }
+      this.hitStop = 0;
+      this.shake = Math.max(this.shake, 9 * this.shakeScale);
+      this.whiteFlash = this.flashes ? 1 : 0.16;
+      this.audio.sfx("ultimate");
+    }
+
+    if (this.supportCinematicTimer <= 0) {
+      this.state = "playing";
+      this.supportCinematicEvents = 0;
+      this.player.attackKind = "slash";
+      this.player.invulnerable = 0.6;
+      this.player.dashCooldown = Math.max(this.player.dashCooldown, 0.18);
+      this.helper.state = "follow";
+      this.helper.stateTimer = 0;
+      this.helper.throwCooldown = 0.45;
+      this.helper.labelTimer = 0;
+      this.cinemaBars.classList.remove("is-visible");
+      this.input.reset();
+      this.setSkillName("連環完遂", 0.72);
+      this.announce("某ガジェオタGと某美少女Nの連続必殺技、完遂");
+    }
   }
 
   private updateHelper(delta: number): void {
@@ -2133,6 +2301,7 @@ export class Game {
     if (this.state !== "idle") this.drawHud(context);
     this.drawTechniqueBanner(context);
     this.drawTutorialPrompts(context);
+    this.drawSupportComboOverlay(context);
     this.drawUltimateOverlay(context);
     this.drawScreenEffects(context);
     context.restore();
@@ -3698,6 +3867,501 @@ export class Game {
       context.fillStyle = "#ffe69a";
       context.fillText(prompt.keys, x, y + 7);
     }
+    context.restore();
+  }
+
+  private drawSupportComboOverlay(context: CanvasRenderingContext2D): void {
+    if (this.state !== "supportCinematic" || this.supportCinematicTimer <= 0) return;
+    const elapsed = SUPPORT_CINEMATIC_DURATION - this.supportCinematicTimer;
+    const flashScale = this.flashes ? 1 : 0.34;
+    const easeOut = (value: number): number => 1 - Math.pow(1 - clamp(value, 0, 1), 3);
+    const drawPlate = (
+      image: HTMLImageElement,
+      alpha: number,
+      offsetX = 0,
+      zoom = 1,
+    ): void => {
+      if (!imageReady(image)) return;
+      const sourceY = 132;
+      const sourceHeight = 760;
+      const width = 500 * zoom;
+      const height = 230 * zoom;
+      context.save();
+      context.globalAlpha = alpha;
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(
+        image,
+        0,
+        sourceY,
+        image.naturalWidth,
+        sourceHeight,
+        -10 + offsetX - (width - 500) * 0.5,
+        20 - (height - 230) * 0.5,
+        width,
+        height,
+      );
+      context.restore();
+    };
+    const drawGadget = (
+      frame: number,
+      x: number,
+      y: number,
+      size: number,
+      rotation: number,
+      alpha = 1,
+    ): void => {
+      const normalized = ((frame % 24) + 24) % 24;
+      const group = Math.floor(normalized / 6);
+      context.save();
+      context.translate(x, y);
+      context.rotate(rotation);
+      context.globalAlpha = alpha;
+      context.shadowColor = group < 2 ? "#ffbd45" : "#74e4df";
+      context.shadowBlur = 10;
+      if (imageReady(this.gadgetSheet)) {
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.drawImage(
+          this.gadgetSheet,
+          (normalized % 6) * 256,
+          group * 256,
+          256,
+          256,
+          -size / 2,
+          -size / 2,
+          size,
+          size,
+        );
+      } else {
+        context.fillStyle = group < 2 ? "#ffdc88" : "#a7fff5";
+        context.fillRect(-size * 0.34, -size * 0.24, size * 0.68, size * 0.48);
+      }
+      context.restore();
+    };
+    const drawJapaneseTechnique = (x: number, y: number, align: CanvasTextAlign, size = 22): void => {
+      context.save();
+      context.textAlign = align;
+      context.textBaseline = "alphabetic";
+      context.font = `900 ${size}px "Hiragino Mincho ProN", "Yu Mincho", serif`;
+      context.lineWidth = 4.5;
+      context.strokeStyle = "rgba(2, 5, 10, 0.94)";
+      context.strokeText("立つ鳥うんこブリブリ", x, y);
+      context.fillStyle = "#fff1c8";
+      context.fillText("立つ鳥うんこブリブリ", x, y);
+      context.lineWidth = 1;
+      context.strokeStyle = "rgba(116, 228, 223, 0.82)";
+      context.strokeText("立つ鳥うんこブリブリ", x, y);
+      context.restore();
+    };
+
+    context.save();
+    context.fillStyle = "rgba(2, 3, 7, 0.48)";
+    context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+
+    if (elapsed < 0.36) {
+      // The support sprite lands first; the card then tears in from the left.
+      const phase = easeOut(elapsed / 0.36);
+      context.fillStyle = `rgba(2, 5, 9, ${0.22 + phase * 0.58})`;
+      context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+      context.save();
+      context.globalCompositeOperation = "screen";
+      context.strokeStyle = `rgba(116, 228, 223, ${phase * 0.86})`;
+      context.lineWidth = 2;
+      for (let index = 0; index < 11; index += 1) {
+        const y = 20 + index * 23;
+        context.beginPath();
+        context.moveTo(-90 + phase * 150 - index * 5, y + 20);
+        context.lineTo(280 + phase * 240, y - 38);
+        context.stroke();
+      }
+      context.strokeStyle = `rgba(255, 189, 69, ${phase * 0.7})`;
+      context.lineWidth = 1;
+      context.beginPath();
+      context.arc(126, 142, 24 + phase * 92, -1.2, 1.9);
+      context.stroke();
+      context.beginPath();
+      context.arc(126, 142, 14 + phase * 62, 1.85, 5.7);
+      context.stroke();
+      context.restore();
+      context.textAlign = "left";
+      context.font = "700 8px monospace";
+      context.fillStyle = `rgba(116, 228, 223, ${phase})`;
+      context.fillText("SUPPORT LINK // GADGET DIVA", 18, 232);
+      context.font = "900 25px serif";
+      context.fillStyle = `rgba(255, 241, 200, ${phase})`;
+      context.fillText("某ガジェオタG", 18, 252);
+    } else if (elapsed < 1.12) {
+      // First card: the helper art and title are the mirror composition of GMK.
+      const phase = (elapsed - 0.36) / 0.76;
+      const reveal = easeOut(phase * 5);
+      const exit = easeOut((phase - 0.84) / 0.16);
+      context.fillStyle = "#03070b";
+      context.fillRect(0, 14, VIEW_WIDTH, 242);
+      context.save();
+      context.beginPath();
+      context.moveTo(-34 - exit * 130, 18);
+      context.lineTo(480 - exit * 34, 30);
+      context.lineTo(502 - exit * 86, 245);
+      context.lineTo(-18 - exit * 146, 255);
+      context.closePath();
+      context.clip();
+      context.translate(-(1 - reveal) * 150, 0);
+      drawPlate(this.helperCutin, 0.98 * reveal, phase * 5, 1.015 + phase * 0.025);
+      context.restore();
+
+      const ink = context.createLinearGradient(144, 0, VIEW_WIDTH, 0);
+      ink.addColorStop(0, "rgba(2, 6, 10, 0)");
+      ink.addColorStop(0.48, "rgba(2, 6, 10, 0.42)");
+      ink.addColorStop(1, "rgba(2, 5, 9, 0.92)");
+      context.fillStyle = ink;
+      context.fillRect(118, 20, 362, 230);
+
+      context.globalAlpha = reveal * (1 - exit);
+      context.strokeStyle = "#74e4df";
+      context.lineWidth = 1.4;
+      context.beginPath();
+      context.moveTo(38, 27);
+      context.lineTo(480, 39);
+      context.moveTo(0, 250);
+      context.lineTo(404, 238);
+      context.stroke();
+      context.strokeStyle = "#ffcf67";
+      context.beginPath();
+      context.moveTo(182, 20);
+      context.lineTo(480, 29);
+      context.stroke();
+      drawJapaneseTechnique(462, 181, "right", 21);
+      context.textAlign = "right";
+      context.font = "700 8px serif";
+      context.fillStyle = "#74e4df";
+      context.fillText("電脳宝具・四機種斉射", 458, 198);
+      context.font = "6px monospace";
+      context.fillStyle = "#ffcc68";
+      context.fillText("TATSU-TORI / GADGET CASCADE", 458, 211);
+      context.fillStyle = "rgba(255, 241, 207, 0.76)";
+      context.fillText("某ガジェオタG　— ROYAL DEVICE ARRAY", 458, 228);
+    } else if (elapsed < 1.48) {
+      // Battlefield insert: four real gadget sprites collide on the same beat.
+      const phase = (elapsed - 1.12) / 0.36;
+      const impactX = clamp(this.player.x - this.cameraX + 170, 220, 332);
+      const impactY = 139;
+      context.fillStyle = `rgba(2, 5, 9, ${0.42 - phase * 0.15})`;
+      context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+      const frames = [1, 7, 13, 19];
+      for (let index = 0; index < frames.length; index += 1) {
+        const fromLeft = index % 2 === 0;
+        const startX = fromLeft ? -30 - index * 12 : VIEW_WIDTH + 30 + index * 12;
+        const startY = 72 + index * 44;
+        const travel = easeOut(Math.min(phase * 1.55, 1));
+        const x = lerp(startX, impactX + (index - 1.5) * 7, travel);
+        const y = lerp(startY, impactY + (index - 1.5) * 5, travel);
+        context.strokeStyle = index < 2 ? "rgba(255, 205, 104, 0.72)" : "rgba(116, 228, 223, 0.72)";
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(startX, startY);
+        context.lineTo(x, y);
+        context.stroke();
+        drawGadget(frames[index], x, y, 34, phase * (index % 2 === 0 ? 7 : -7), 0.98);
+      }
+      const burst = clamp((phase - 0.52) * 2.1, 0, 1);
+      context.save();
+      context.globalCompositeOperation = "screen";
+      context.strokeStyle = `rgba(229, 255, 241, ${burst * flashScale})`;
+      for (let index = 0; index < 20; index += 1) {
+        const angle = (index / 20) * Math.PI * 2 + phase;
+        const inner = 8 + burst * 14;
+        const outer = 35 + seeded(index + 901) * 74 * burst;
+        context.beginPath();
+        context.moveTo(impactX + Math.cos(angle) * inner, impactY + Math.sin(angle) * inner);
+        context.lineTo(impactX + Math.cos(angle) * outer, impactY + Math.sin(angle) * outer);
+        context.stroke();
+      }
+      context.restore();
+      context.textAlign = "center";
+      context.font = "bold 7px monospace";
+      context.fillStyle = "#fff0bf";
+      context.fillText("SEGA 16-BIT  ×  FAMICOM  ×  EVEN G2  ×  MAC MINI", VIEW_WIDTH / 2, 244);
+    } else if (elapsed < 2.18) {
+      // A tighter final support card holds long enough for the joke-title to land cleanly.
+      const phase = (elapsed - 1.48) / 0.7;
+      const reveal = easeOut(phase * 5);
+      const exit = easeOut((phase - 0.86) / 0.14);
+      context.fillStyle = "#02060a";
+      context.fillRect(0, 16, VIEW_WIDTH, 238);
+      context.save();
+      context.beginPath();
+      context.moveTo(-30 - exit * 150, 20);
+      context.lineTo(448 - exit * 38, 20);
+      context.lineTo(500 - exit * 82, 250);
+      context.lineTo(-12 - exit * 164, 250);
+      context.closePath();
+      context.clip();
+      drawPlate(this.helperCutin, 0.98 * reveal, -24 - exit * 52, 1.13 + phase * 0.025);
+      context.restore();
+      const ink = context.createLinearGradient(160, 0, VIEW_WIDTH, 0);
+      ink.addColorStop(0, "rgba(1, 5, 9, 0)");
+      ink.addColorStop(0.45, "rgba(1, 5, 9, 0.42)");
+      ink.addColorStop(1, "rgba(1, 4, 8, 0.95)");
+      context.fillStyle = ink;
+      context.fillRect(132, 16, 348, 238);
+      context.globalAlpha = reveal * (1 - exit);
+      context.textAlign = "right";
+      context.font = "italic 800 10px Georgia, serif";
+      context.fillStyle = "#ffcc69";
+      context.fillText("FINAL GADGET CALL", 458, 132);
+      drawJapaneseTechnique(459, 166, "right", 22);
+      context.font = "6px monospace";
+      context.fillStyle = "#74e4df";
+      context.fillText("NO DEVICE LEFT BEHIND // SUPPORT LIMIT BREAK", 458, 185);
+      context.strokeStyle = "#74e4df";
+      context.lineWidth = 2;
+      context.beginPath();
+      context.moveTo(194, 199);
+      context.lineTo(468, 189);
+      context.stroke();
+    } else if (elapsed < 2.7) {
+      // The support damage remains modest; visual density comes from the device storm.
+      const phase = (elapsed - 2.18) / 0.52;
+      context.fillStyle = `rgba(1, 4, 8, ${0.18 + (1 - phase) * 0.18})`;
+      context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+      const originX = clamp(this.helper.x - this.cameraX + 14, 38, 165);
+      const originY = clamp(this.helper.y + 20, 96, 205);
+      context.save();
+      context.globalCompositeOperation = "screen";
+      for (let index = 0; index < 14; index += 1) {
+        const delay = index * 0.035;
+        const travel = easeOut(clamp((phase - delay) / 0.54, 0, 1));
+        const lane = (index % 7) - 3;
+        const targetX = VIEW_WIDTH + 35;
+        const targetY = 132 + lane * 22;
+        const x = lerp(originX, targetX, travel);
+        const arc = Math.sin(travel * Math.PI) * (24 + (index % 4) * 9);
+        const y = lerp(originY + lane * 3, targetY, travel) - arc;
+        const color = Math.floor((index % 24) / 6) < 2 ? "#ffbd45" : "#74e4df";
+        context.strokeStyle = color;
+        context.globalAlpha = 0.2 + (1 - travel) * 0.42;
+        context.lineWidth = index % 3 === 0 ? 3 : 1;
+        context.beginPath();
+        context.moveTo(originX, originY);
+        context.quadraticCurveTo((originX + x) * 0.5, y - arc * 0.5, x, y);
+        context.stroke();
+        drawGadget(index % 4 * 6 + index % 6, x, y, 24 + (index % 3) * 4, phase * (6 + index * 0.3), 1);
+      }
+      context.restore();
+      context.fillStyle = "rgba(2, 5, 9, 0.82)";
+      context.fillRect(12, 20, 139, 24);
+      context.strokeStyle = "rgba(116, 228, 223, 0.7)";
+      context.strokeRect(12.5, 20.5, 139, 24);
+      context.textAlign = "left";
+      context.font = "bold 7px monospace";
+      context.fillStyle = "#74e4df";
+      context.fillText("SUPPORT DAMAGE // 06", 20, 31);
+      context.fillStyle = "#fff0c8";
+      context.fillText("4 DEVICE TYPES / FULL SALVO", 20, 40);
+    } else if (elapsed < 3.48) {
+      // Second card comes from the opposite edge and restores the established GMK composition.
+      const phase = (elapsed - 2.7) / 0.78;
+      const reveal = easeOut(phase * 5);
+      const exit = easeOut((phase - 0.86) / 0.14);
+      context.fillStyle = "#060308";
+      context.fillRect(0, 15, VIEW_WIDTH, 240);
+      context.save();
+      context.beginPath();
+      context.moveTo(8 + exit * 58, 28);
+      context.lineTo(514 + exit * 152, 17);
+      context.lineTo(500 + exit * 146, 252);
+      context.lineTo(-18 + exit * 86, 240);
+      context.closePath();
+      context.clip();
+      context.translate((1 - reveal) * 156, 0);
+      drawPlate(this.gmkCutin, 0.98 * reveal, -8 - phase * 3, 1.03 + phase * 0.025);
+      context.restore();
+      const ink = context.createLinearGradient(0, 0, 322, 0);
+      ink.addColorStop(0, "rgba(5, 2, 8, 0.95)");
+      ink.addColorStop(0.56, "rgba(5, 2, 8, 0.48)");
+      ink.addColorStop(1, "rgba(5, 2, 8, 0)");
+      context.fillStyle = ink;
+      context.fillRect(0, 18, 338, 234);
+      context.globalAlpha = reveal * (1 - exit);
+      context.textAlign = "left";
+      context.font = "italic 800 59px Georgia, serif";
+      context.lineWidth = 5;
+      context.strokeStyle = "rgba(3, 2, 6, 0.94)";
+      context.strokeText("GMK", 22, 179);
+      context.fillStyle = "#fff0c8";
+      context.fillText("GMK", 22, 179);
+      context.font = "700 8px serif";
+      context.fillStyle = "#ffca61";
+      context.fillText("連動奥義・第二極", 27, 196);
+      context.font = "6px monospace";
+      context.fillStyle = "#75ddd4";
+      context.fillText("LINKED MANIFEST / SECOND BREAK", 27, 210);
+      context.strokeStyle = "#ffd36d";
+      context.lineWidth = 1.5;
+      context.beginPath();
+      context.moveTo(0, 31);
+      context.lineTo(416, 20);
+      context.moveTo(74, 252);
+      context.lineTo(480, 238);
+      context.stroke();
+    } else if (elapsed < 4.58) {
+      // Blue-white support pressure and the gold GMK edge meet at the same focal point.
+      const phase = (elapsed - 3.48) / 1.1;
+      const centerX = 240 + Math.sin(phase * Math.PI * 5) * (1 - phase) * 13;
+      const centerY = 137;
+      context.fillStyle = "rgba(1, 3, 7, 0.78)";
+      context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+      context.save();
+      context.beginPath();
+      context.rect(0, 0, centerX, VIEW_HEIGHT);
+      context.clip();
+      drawPlate(this.helperCutin, 0.2 + phase * 0.12, -106, 1.08);
+      context.restore();
+      context.save();
+      context.beginPath();
+      context.rect(centerX, 0, VIEW_WIDTH - centerX, VIEW_HEIGHT);
+      context.clip();
+      drawPlate(this.gmkCutin, 0.2 + phase * 0.12, 110, 1.08);
+      context.restore();
+      context.save();
+      context.globalCompositeOperation = "screen";
+      const cyanBeam = context.createLinearGradient(0, 0, centerX, 0);
+      cyanBeam.addColorStop(0, "rgba(116, 228, 223, 0)");
+      cyanBeam.addColorStop(0.56, `rgba(116, 228, 223, ${0.32 + phase * 0.34})`);
+      cyanBeam.addColorStop(1, `rgba(225, 255, 249, ${0.86 * flashScale})`);
+      context.fillStyle = cyanBeam;
+      context.beginPath();
+      context.moveTo(0, 78 - phase * 18);
+      context.lineTo(centerX + 5, centerY - 5);
+      context.lineTo(centerX + 5, centerY + 5);
+      context.lineTo(0, 197 + phase * 18);
+      context.closePath();
+      context.fill();
+      const goldBeam = context.createLinearGradient(VIEW_WIDTH, 0, centerX, 0);
+      goldBeam.addColorStop(0, "rgba(255, 189, 69, 0)");
+      goldBeam.addColorStop(0.56, `rgba(255, 189, 69, ${0.34 + phase * 0.35})`);
+      goldBeam.addColorStop(1, `rgba(255, 249, 218, ${0.9 * flashScale})`);
+      context.fillStyle = goldBeam;
+      context.beginPath();
+      context.moveTo(VIEW_WIDTH, 66 - phase * 16);
+      context.lineTo(centerX - 5, centerY - 5);
+      context.lineTo(centerX - 5, centerY + 5);
+      context.lineTo(VIEW_WIDTH, 207 + phase * 16);
+      context.closePath();
+      context.fill();
+      context.strokeStyle = `rgba(255, 255, 239, ${(0.5 + phase * 0.5) * flashScale})`;
+      context.lineWidth = 1;
+      for (let ring = 0; ring < 9; ring += 1) {
+        const radius = 12 + ring * 9 + phase * 17;
+        context.beginPath();
+        context.arc(centerX, centerY, radius, -1.5 + ring * 0.08, 1.6 + ring * 0.1);
+        context.stroke();
+      }
+      for (let ray = 0; ray < 26; ray += 1) {
+        const angle = (ray / 26) * Math.PI * 2 + phase * 2;
+        const inner = 18 + phase * 9;
+        const outer = 62 + seeded(ray + 519) * 80 * phase;
+        context.beginPath();
+        context.moveTo(centerX + Math.cos(angle) * inner, centerY + Math.sin(angle) * inner);
+        context.lineTo(centerX + Math.cos(angle) * outer, centerY + Math.sin(angle) * outer);
+        context.stroke();
+      }
+      context.restore();
+      context.textAlign = "left";
+      context.font = "bold 7px monospace";
+      context.fillStyle = "#74e4df";
+      context.fillText("GADGET ARRAY", 15, 249);
+      context.textAlign = "right";
+      context.fillStyle = "#ffcc69";
+      context.fillText("GMK / SECOND BREAK", 465, 249);
+    } else {
+      // Final GMK card, then the diagonal lattice cuts through the recovered battlefield.
+      const phase = (elapsed - 4.58) / 0.62;
+      if (phase < 0.42) {
+        const card = easeOut(phase / 0.42);
+        context.fillStyle = "#050207";
+        context.fillRect(0, 15, VIEW_WIDTH, 240);
+        context.save();
+        context.beginPath();
+        context.moveTo(112 - card * 28, 18);
+        context.lineTo(VIEW_WIDTH, 18);
+        context.lineTo(VIEW_WIDTH, 252);
+        context.lineTo(62 - card * 20, 252);
+        context.closePath();
+        context.clip();
+        drawPlate(this.gmkCutin, 0.99, -18, 1.12 + card * 0.025);
+        context.restore();
+        context.fillStyle = "rgba(4, 2, 7, 0.9)";
+        context.beginPath();
+        context.moveTo(0, 18);
+        context.lineTo(216, 18);
+        context.lineTo(166, 252);
+        context.lineTo(0, 252);
+        context.closePath();
+        context.fill();
+        context.textAlign = "left";
+        context.font = "italic 800 57px Georgia, serif";
+        context.fillStyle = "#fff1cf";
+        context.fillText("GMK", 21, 150);
+        context.font = "bold 7px monospace";
+        context.fillStyle = "#ffcc64";
+        context.fillText("LINK FINISH / GOLDEN BREAK", 25, 166);
+        context.fillStyle = "#75ddd4";
+        context.fillText("SUPPORT × NINTH LIFE", 25, 179);
+      } else {
+        const impact = (phase - 0.42) / 0.58;
+        const fade = 1 - easeOut((impact - 0.46) / 0.54);
+        context.fillStyle = `rgba(255, 252, 230, ${clamp((0.22 - impact) * 4.5, 0, 0.88) * flashScale})`;
+        context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+        context.save();
+        context.globalCompositeOperation = "screen";
+        context.globalAlpha = fade * flashScale;
+        context.strokeStyle = "#fff3b5";
+        context.lineWidth = 5;
+        context.beginPath();
+        context.moveTo(-26, 226);
+        context.lineTo(506, 39);
+        context.stroke();
+        context.strokeStyle = "#8ffff2";
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(-18, 54);
+        context.lineTo(498, 218);
+        context.stroke();
+        context.lineWidth = 1;
+        for (let index = 0; index < 18; index += 1) {
+          const offset = (index - 9) * 11;
+          context.strokeStyle = index % 3 === 0 ? "#8ffff2" : "#ffe69a";
+          context.beginPath();
+          context.moveTo(-24, 223 + offset);
+          context.lineTo(504, 41 + offset * 0.44);
+          context.stroke();
+        }
+        const core = context.createRadialGradient(276, 136, 0, 276, 136, 176);
+        core.addColorStop(0, `rgba(255, 255, 241, ${0.92 * fade})`);
+        core.addColorStop(0.17, `rgba(255, 211, 98, ${0.58 * fade})`);
+        core.addColorStop(0.42, `rgba(116, 228, 223, ${0.28 * fade})`);
+        core.addColorStop(1, "rgba(116, 228, 223, 0)");
+        context.fillStyle = core;
+        context.fillRect(94, -20, 364, 310);
+        context.restore();
+      }
+    }
+
+    // A restrained pixel/scan pass keeps both cards in the established game language.
+    context.save();
+    context.globalAlpha = 0.055;
+    context.fillStyle = "#dffef7";
+    for (let y = 1; y < VIEW_HEIGHT; y += 4) context.fillRect(0, y, VIEW_WIDTH, 1);
+    const noiseTick = Math.floor(this.elapsed * 30);
+    context.globalAlpha = 0.09;
+    for (let index = 0; index < 42; index += 1) {
+      const x = Math.floor(seeded(index + noiseTick * 7 + 1301) * VIEW_WIDTH);
+      const y = Math.floor(seeded(index + noiseTick * 11 + 1709) * VIEW_HEIGHT);
+      context.fillRect(x, y, 1 + (index % 2), 1);
+    }
+    context.restore();
     context.restore();
   }
 
