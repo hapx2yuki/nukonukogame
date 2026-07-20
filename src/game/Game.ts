@@ -408,6 +408,7 @@ export class Game {
   private bossDefeated = false;
   private bossIntroTimer = 0;
   private victoryCountdown = 0;
+  private combatMusicHold = 0;
   private deathTimer = 0;
   private skillName = "";
   private skillNameTimer = 0;
@@ -757,6 +758,7 @@ export class Game {
     this.bossDefeated = false;
     this.bossIntroTimer = 0;
     this.victoryCountdown = 0;
+    this.combatMusicHold = 0;
     this.deathTimer = 0;
     this.skillName = "";
     this.skillNameTimer = 0;
@@ -928,6 +930,7 @@ export class Game {
 
     this.updatePlayer(delta);
     this.updateEnemies(delta);
+    this.updateMusicMode(delta);
     this.updateHelper(delta);
     this.updateProjectiles(delta);
     this.updateParticles(delta);
@@ -943,6 +946,26 @@ export class Game {
       this.dawn = clamp(this.dawn + rawDelta * 0.34, 0, 1);
       if (this.victoryCountdown <= 0) this.showResults();
     }
+  }
+
+  private updateMusicMode(delta: number): void {
+    if (this.bossDefeated || this.victoryCountdown > 0) return;
+    if (this.bossTriggered) {
+      this.combatMusicHold = 0;
+      this.audio.setMode("boss");
+      return;
+    }
+    const playerCenter = this.player.x + this.player.w / 2;
+    const enemyNearby = this.enemies.some((enemy) => (
+      enemy.active
+      && enemy.state !== "dead"
+      && enemy.kind !== "boss"
+      && Math.abs(enemy.x + enemy.w / 2 - playerCenter) < 390
+    ));
+    this.combatMusicHold = enemyNearby
+      ? 2.4
+      : Math.max(0, this.combatMusicHold - delta);
+    this.audio.setMode(this.combatMusicHold > 0 ? "combat" : "explore");
   }
 
   private updateVisualTimers(delta: number): void {
@@ -1359,7 +1382,7 @@ export class Game {
     this.spawnBurst(this.helper.x, this.helper.y + 28, "#74e4df", 28, "spark");
     this.spawnBurst(this.helper.x, this.helper.y + 34, "#ffbd45", 18, "paper");
     this.addRing(this.helper.x, this.helper.y + 24, "#ffe69a", 42);
-    this.audio.sfx("select");
+    this.audio.sfx("helper");
     this.announce("助っ人、某ガジェオタG参戦。ガジェット支援を開始");
   }
 
@@ -1377,7 +1400,7 @@ export class Game {
     this.input.reset();
     this.cinemaBars.classList.remove("is-visible");
     this.setSkillName("某美少女N × 某ガジェオタG", 0.42);
-    this.audio.sfx("ultimate");
+    this.audio.sfx("cutin");
   }
 
   private supportCinematicTargets(limit = Number.POSITIVE_INFINITY): Enemy[] {
@@ -1412,7 +1435,7 @@ export class Game {
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.linkPulseEnd && (this.supportCinematicEvents & 1) === 0) {
       this.supportCinematicEvents |= 1;
-      this.audio.sfx("enemyCue");
+      this.audio.sfx("gadgetThrow");
       this.announce("某ガジェオタG、4種のガジェットで攻撃");
     }
 
@@ -1426,13 +1449,13 @@ export class Game {
       this.addRing(impactX, impactY, "#9afff4", 52);
       this.shake = Math.max(this.shake, 4.2 * this.shakeScale);
       this.whiteFlash = this.flashes ? 0.34 : 0.07;
-      this.audio.sfx("hit");
+      this.audio.sfx("gadgetImpact");
     }
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.manifestImpactEnd && (this.supportCinematicEvents & 4) === 0) {
       this.supportCinematicEvents |= 4;
       this.setSkillName("立つ鳥うんこブリブリ", 0.72);
-      this.audio.sfx("ultimate");
+      this.audio.sfx("cutin");
       this.announce("某ガジェオタG、必殺技「立つ鳥うんこブリブリ」発動");
     }
 
@@ -1451,14 +1474,14 @@ export class Game {
       }
       this.shake = Math.max(this.shake, 3.6 * this.shakeScale);
       this.whiteFlash = this.flashes ? 0.28 : 0.06;
-      this.audio.sfx("charm");
+      this.audio.sfx("gadgetImpact");
     }
 
     if (elapsed >= SUPPORT_CINEMATIC_BEATS.helperStrikeEnd && (this.supportCinematicEvents & 16) === 0) {
       this.supportCinematicEvents |= 16;
       this.player.attackKind = "ultimate";
       this.setSkillName("GMK", 1.85);
-      this.audio.sfx("ultimate");
+      this.audio.sfx("cutin");
       this.announce("某美少女N、GMK発動");
     }
 
@@ -1497,7 +1520,7 @@ export class Game {
       this.hitStop = 0;
       this.shake = Math.max(this.shake, 9 * this.shakeScale);
       this.whiteFlash = this.flashes ? 1 : 0.16;
-      this.audio.sfx("ultimate");
+      this.audio.sfx("linkedUltimate");
     }
 
     if (this.supportCinematicTimer <= 0) {
@@ -1609,7 +1632,7 @@ export class Game {
     helper.state = "throw";
     helper.stateTimer = 0.27;
     this.spawnBurst(originX, originY, frame < 12 ? "#ffbd45" : "#74e4df", 6, "spark");
-    this.audio.sfx("charm");
+    this.audio.sfx("gadgetThrow");
   }
 
   private updateCinematic(delta: number): void {
@@ -2005,6 +2028,7 @@ export class Game {
         critical: false,
       });
       this.spawnBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.42, "#74e4df", 5, "spark");
+      if (this.state !== "supportCinematic") this.audio.sfx("gadgetImpact");
       return;
     }
 

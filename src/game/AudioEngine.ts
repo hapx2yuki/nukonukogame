@@ -14,7 +14,12 @@ export type SoundName =
   | "boss"
   | "ultimate"
   | "victory"
-  | "select";
+  | "select"
+  | "cutin"
+  | "helper"
+  | "gadgetThrow"
+  | "gadgetImpact"
+  | "linkedUltimate";
 
 export type MusicMode = "explore" | "combat" | "boss" | "victory";
 
@@ -24,14 +29,49 @@ interface GeneratedSoundConfig {
   playbackRate?: number;
 }
 
-const GENERATED_SOUNDS: Partial<Record<SoundName, GeneratedSoundConfig>> = {
-  attack: { path: "/assets/audio/sfx/slash.mp3", gain: 0.82 },
-  heavy: { path: "/assets/audio/sfx/slash.mp3", gain: 0.94, playbackRate: 0.84 },
-  dash: { path: "/assets/audio/sfx/dash.mp3", gain: 0.78 },
-  dodge: { path: "/assets/audio/sfx/parry.mp3", gain: 0.92 },
-  jump: { path: "/assets/audio/sfx/jump.mp3", gain: 0.76 },
+interface MusicTrackConfig {
+  path: string;
+  gain: number;
+}
+
+const GENERATED_SOUNDS: Record<SoundName, GeneratedSoundConfig> = {
+  attack: { path: "/assets/audio/sfx/slash.mp3", gain: 0.78 },
+  heavy: { path: "/assets/audio/sfx/heavy-slash.mp3", gain: 0.82 },
+  hit: { path: "/assets/audio/sfx/impact-hit.mp3", gain: 0.72 },
+  kill: { path: "/assets/audio/sfx/enemy-defeat.mp3", gain: 0.76 },
+  dash: { path: "/assets/audio/sfx/dash.mp3", gain: 0.72 },
+  dodge: { path: "/assets/audio/sfx/parry.mp3", gain: 0.88 },
+  charm: { path: "/assets/audio/sfx/gadget-magic.mp3", gain: 0.72 },
+  jump: { path: "/assets/audio/sfx/jump.mp3", gain: 0.72 },
+  land: { path: "/assets/audio/sfx/land.mp3", gain: 0.66 },
+  hurt: { path: "/assets/audio/sfx/hurt.mp3", gain: 0.7 },
+  enemyCue: { path: "/assets/audio/sfx/enemy-cue.mp3", gain: 0.74 },
+  break: { path: "/assets/audio/sfx/guard-break.mp3", gain: 0.76 },
+  boss: { path: "/assets/audio/sfx/boss-intro.mp3", gain: 0.8 },
   ultimate: { path: "/assets/audio/sfx/ultimate.mp3", gain: 0.72 },
+  victory: { path: "/assets/audio/sfx/victory-stinger.mp3", gain: 0.76 },
+  select: { path: "/assets/audio/sfx/ui-select.mp3", gain: 0.68 },
+  cutin: { path: "/assets/audio/sfx/cutin-kin.mp3", gain: 0.84 },
+  helper: { path: "/assets/audio/sfx/helper-entrance.mp3", gain: 0.8 },
+  gadgetThrow: { path: "/assets/audio/sfx/gadget-throw.mp3", gain: 0.72 },
+  gadgetImpact: { path: "/assets/audio/sfx/gadget-impact.mp3", gain: 0.74 },
+  linkedUltimate: { path: "/assets/audio/sfx/linked-finisher.mp3", gain: 0.82 },
 };
+
+const FOOTSTEP_SOUNDS: Record<"wood" | "stone" | "metal", GeneratedSoundConfig> = {
+  wood: { path: "/assets/audio/sfx/footstep-wood.mp3", gain: 0.34 },
+  stone: { path: "/assets/audio/sfx/footstep-stone.mp3", gain: 0.32 },
+  metal: { path: "/assets/audio/sfx/footstep-metal.mp3", gain: 0.3 },
+};
+
+const MUSIC_TRACKS: Record<MusicMode, MusicTrackConfig> = {
+  explore: { path: "/assets/audio/music/explore.mp3", gain: 0.82 },
+  combat: { path: "/assets/audio/music/combat.mp3", gain: 0.66 },
+  boss: { path: "/assets/audio/music/boss.mp3", gain: 0.52 },
+  victory: { path: "/assets/audio/music/victory.mp3", gain: 0.84 },
+};
+
+const RAIN_AMBIENCE_PATH = "/assets/audio/sfx/rain-loop.mp3";
 
 export class AudioEngine {
   private context: AudioContext | null = null;
@@ -41,6 +81,10 @@ export class AudioEngine {
   private noiseBuffer: AudioBuffer | null = null;
   private generatedBuffers = new Map<string, AudioBuffer>();
   private generatedSoundPromise: Promise<void> | null = null;
+  private musicSource: AudioBufferSourceNode | null = null;
+  private musicSourceGain: GainNode | null = null;
+  private activeMusicMode: MusicMode | null = null;
+  private ambienceSource: AudioBufferSourceNode | null = null;
   private musicTimer = 0;
   private musicStep = 0;
   private mode: MusicMode = "explore";
@@ -67,7 +111,7 @@ export class AudioEngine {
       this.master = this.context.createGain();
       this.master.gain.value = this.muted ? 0 : 0.72;
       this.musicBus = this.context.createGain();
-      this.musicBus.gain.value = 0.22;
+      this.musicBus.gain.value = 0.32;
       this.sfxBus = this.context.createGain();
       this.sfxBus.gain.value = 0.75;
       this.musicBus.connect(this.master);
@@ -75,14 +119,14 @@ export class AudioEngine {
       this.master.connect(compressor);
       compressor.connect(this.context.destination);
       this.noiseBuffer = this.createNoiseBuffer();
-      this.startRainBed();
     }
 
     if (this.context.state === "suspended") await this.context.resume();
     await this.loadGeneratedSounds();
     if (!this.started) {
       this.started = true;
-      this.startMusicLoop();
+      this.startAmbience();
+      if (!this.startGeneratedMusic(this.mode)) this.startMusicLoop();
     }
   }
 
@@ -106,12 +150,22 @@ export class AudioEngine {
     if (this.context && this.musicBus) {
       const now = this.context.currentTime;
       this.musicBus.gain.cancelScheduledValues(now);
-      this.musicBus.gain.setTargetAtTime(mode === "victory" ? 0.3 : 0.22, now, 0.25);
+      this.musicBus.gain.setTargetAtTime(mode === "victory" ? 0.34 : 0.32, now, 0.25);
     }
+    if (this.started && !this.startGeneratedMusic(mode)) this.startMusicLoop();
   }
 
   footstep(material: "wood" | "stone" | "metal" = "wood"): void {
     if (!this.ready()) return;
+    const generated = FOOTSTEP_SOUNDS[material];
+    if (this.generatedBuffers.has(generated.path)) {
+      this.playGeneratedBuffer(
+        generated.path,
+        generated.gain,
+        0.94 + Math.random() * 0.12,
+      );
+      return;
+    }
     if (material === "wood") {
       this.noise(0.035, 0.035, 880);
       this.tone(96, 0.045, "triangle", 0.025, 72);
@@ -201,11 +255,12 @@ export class AudioEngine {
     if (!this.context) return;
     if (!this.generatedSoundPromise) {
       const context = this.context;
-      const paths = [...new Set(
-        Object.values(GENERATED_SOUNDS)
-          .map((config) => config?.path)
-          .filter((path): path is string => Boolean(path)),
-      )];
+      const paths = [...new Set([
+        ...Object.values(GENERATED_SOUNDS).map((config) => config.path),
+        ...Object.values(FOOTSTEP_SOUNDS).map((config) => config.path),
+        ...Object.values(MUSIC_TRACKS).map((config) => config.path),
+        RAIN_AMBIENCE_PATH,
+      ])];
       this.generatedSoundPromise = Promise.all(paths.map(async (path) => {
         try {
           const response = await fetch(path);
@@ -223,19 +278,21 @@ export class AudioEngine {
 
   private playGeneratedSound(name: SoundName): boolean {
     const config = GENERATED_SOUNDS[name];
-    if (!config || !this.generatedBuffers.has(config.path)) return false;
+    if (!this.generatedBuffers.has(config.path)) return false;
 
     if (name === "ultimate") {
       this.playGeneratedBuffer(config.path, config.gain, 1, 0);
-      const parryPath = GENERATED_SOUNDS.dodge?.path;
-      if (parryPath && this.generatedBuffers.has(parryPath)) {
+      const parryPath = GENERATED_SOUNDS.dodge.path;
+      if (this.generatedBuffers.has(parryPath)) {
         this.playGeneratedBuffer(parryPath, 0.74, 1.12, 0.015);
         this.playGeneratedBuffer(parryPath, 0.66, 0.94, 0.185);
       }
       return true;
     }
 
-    const variation = name === "attack" ? 0.96 + Math.random() * 0.08 : 1;
+    const variation = name === "attack" || name === "heavy"
+      ? 0.96 + Math.random() * 0.08
+      : 1;
     this.playGeneratedBuffer(
       config.path,
       config.gain,
@@ -263,11 +320,71 @@ export class AudioEngine {
     source.start(this.context.currentTime + delay);
   }
 
+  private startGeneratedMusic(mode: MusicMode): boolean {
+    if (!this.context || !this.musicBus) return false;
+    const config = MUSIC_TRACKS[mode];
+    const buffer = this.generatedBuffers.get(config.path);
+    if (!buffer) return false;
+    if (this.musicSource && this.activeMusicMode === mode) return true;
+
+    window.clearInterval(this.musicTimer);
+    this.musicTimer = 0;
+    const now = this.context.currentTime;
+    const previousSource = this.musicSource;
+    const previousGain = this.musicSourceGain;
+    const source = this.context.createBufferSource();
+    const gain = this.context.createGain();
+    source.buffer = buffer;
+    source.loop = mode !== "victory";
+    source.connect(gain);
+    gain.connect(this.musicBus);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(config.gain, now + 0.52);
+    source.start(now);
+
+    if (previousSource && previousGain) {
+      previousGain.gain.cancelScheduledValues(now);
+      previousGain.gain.setValueAtTime(Math.max(0.0001, previousGain.gain.value), now);
+      previousGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+      previousSource.stop(now + 0.52);
+    }
+
+    this.musicSource = source;
+    this.musicSourceGain = gain;
+    this.activeMusicMode = mode;
+    source.addEventListener("ended", () => {
+      if (this.musicSource !== source) return;
+      this.musicSource = null;
+      this.musicSourceGain = null;
+      this.activeMusicMode = null;
+    });
+    return true;
+  }
+
+  private startAmbience(): void {
+    if (!this.context || !this.musicBus || this.ambienceSource) return;
+    const buffer = this.generatedBuffers.get(RAIN_AMBIENCE_PATH);
+    if (!buffer) {
+      this.startRainBed();
+      return;
+    }
+    const source = this.context.createBufferSource();
+    const gain = this.context.createGain();
+    source.buffer = buffer;
+    source.loop = true;
+    gain.gain.value = 0.34;
+    source.connect(gain);
+    gain.connect(this.musicBus);
+    source.start();
+    this.ambienceSource = source;
+  }
+
   private ready(): boolean {
     return Boolean(this.context && this.sfxBus && this.context.state === "running" && !this.muted);
   }
 
   private startMusicLoop(): void {
+    if (this.musicTimer) return;
     window.clearInterval(this.musicTimer);
     this.musicTimer = window.setInterval(() => this.musicTick(), 118);
   }
