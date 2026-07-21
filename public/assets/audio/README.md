@@ -1,6 +1,6 @@
 # 音響素材
 
-2026年7月20日〜21日にElevenLabsの効果音生成APIと音楽生成APIで制作した、ゲーム専用の音響素材です。全37音源を実際の操作・戦闘・演出へ割り当てています。
+2026年7月20日〜21日にElevenLabsの効果音生成APIと音楽生成APIで制作した、ゲーム専用の音響素材です。全29音源を実際の操作・戦闘・演出へ割り当てています。
 
 ## BGM・環境音
 
@@ -32,20 +32,12 @@
 - `sfx/guard-break.mp3`: 崩し・物体破壊
 - `sfx/boss-intro.mp3`: ボス登場・第二形態
 
-## 助っ人・奥義・カットイン
+## 奥義・カットイン
 
-- `sfx/helper-entrance.mp3`: 某ガジェオタGの登場
-- `sfx/gadget-throw.mp3`: ガジェット投擲
-- `sfx/gadget-impact.mp3`: ガジェット命中
 - `sfx/cutin-kin.mp3`: カットインの二連「キン・キン」
-- `sfx/cutin-open.mp3`: 合体奥義の開始カットイン
-- `sfx/cutin-support.mp3`: 某ガジェオタGの奥義カットイン
 - `sfx/cutin-gmk.mp3`: GMKの奥義カットイン
-- `sfx/cutin-linked.mp3`: 合体技成立時の最高潮カットイン
-- `sfx/linked-rush-hit.mp3`: 合体成立後に加速する7連続の着弾
 - `sfx/ultimate.mp3`: GMK
 - `sfx/ultimate-impact.mp3`: 奥義命中時の爆発・衝撃
-- `sfx/linked-finisher.mp3`: 合体技の最終打となる最大衝撃
 - `sfx/boss-phase-shift.mp3`: ボス第二相への移行
 - `sfx/victory-stinger.mp3`: 勝利演出
 
